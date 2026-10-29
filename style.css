@@ -1,0 +1,243 @@
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent
+}
+
+html,
+body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #111;
+    font-family: "Trebuchet MS", system-ui, sans-serif;
+    color: #fff;
+    touch-action: none;
+    user-select: none
+}
+
+canvas {
+    display: block;
+    image-rendering: pixelated
+}
+
+#hud {
+    position: fixed;
+    inset: 0;
+    pointer-events: none
+}
+
+#hud button {
+    pointer-events: auto
+}
+
+#top {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    background: #000a;
+    padding: 8px 12px;
+    border-radius: 8px;
+    max-width: 48vw;
+    font-size: 14px
+}
+
+#objs {
+    margin: 6px 0 0;
+    padding-left: 18px
+}
+
+#objs li.done {
+    text-decoration: line-through;
+    opacity: .6
+}
+
+#toast {
+    position: absolute;
+    left: 50%;
+    top: 14px;
+    transform: translateX(-50%);
+    background: #fff;
+    color: #222;
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-weight: bold;
+    max-width: min(90vw, 520px);
+    text-align: center;
+    opacity: 0;
+    transition: opacity .25s;
+    font-size: 14px
+}
+
+#toast.on {
+    opacity: 1
+}
+
+#side {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px
+}
+
+#side button,
+.btn {
+    background: #f2b705;
+    color: #222;
+    border: 0;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer
+}
+
+#side button.on {
+    outline: 3px solid #fff
+}
+
+#team {
+    position: absolute;
+    left: 50%;
+    bottom: 8px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px
+}
+
+.ch {
+    position: relative;
+    width: 76px;
+    height: 96px;
+    border: 3px solid #444;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #222;
+    padding: 0;
+    cursor: pointer;
+    color: #fff
+}
+
+.ch img {
+    width: 100%;
+    height: 68px;
+    object-fit: cover;
+    display: block
+}
+
+.ch span {
+    display: block;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 2px 0
+}
+
+.ch i {
+    position: absolute;
+    left: 3px;
+    top: 3px;
+    background: #000b;
+    border-radius: 4px;
+    padding: 0 5px;
+    font-style: normal;
+    font-size: 12px
+}
+
+.ch.sel {
+    border-color: #f2b705;
+    box-shadow: 0 0 10px #f2b705
+}
+
+.ch .cd {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    background: #000b;
+    height: 0
+}
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: #000c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+    padding: 12px
+}
+
+.overlay[hidden] {
+    display: none
+}
+
+.card {
+    background: #1c1f2a;
+    border: 3px solid #f2b705;
+    border-radius: 14px;
+    padding: 20px 24px;
+    max-width: 640px;
+    width: 100%;
+    line-height: 1.45
+}
+
+.card h1 {
+    margin: 0 0 8px;
+    color: #f2b705;
+    font-size: 26px
+}
+
+.card h2 {
+    margin: 0 0 8px;
+    color: #f2b705
+}
+
+.card .btn {
+    margin: 6px 6px 0 0
+}
+
+.card img.br {
+    width: 100%;
+    max-height: 240px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-bottom: 10px
+}
+
+.warn {
+    background: #7a1020;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px
+}
+
+.small {
+    font-size: 13px;
+    opacity: .85
+}
+
+@media (max-width:700px) {
+    .ch {
+        width: 58px;
+        height: 78px
+    }
+
+    .ch img {
+        height: 52px
+    }
+
+    .ch span {
+        font-size: 9px
+    }
+
+    #top {
+        font-size: 12px
+    }
+
+    #side button {
+        padding: 7px 8px;
+        font-size: 12px
+    }
+}
