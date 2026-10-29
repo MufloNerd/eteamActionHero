@@ -8,7 +8,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[Math.floor(Math.random() * a.length)];
 const STOP = 12; // fps delle pose: effetto stop-motion
-const BLIND = ['sleep', 'drink', 'laugh', 'stunned', 'flee'];
+const BLIND = ['sleep', 'drink', 'eat', 'laugh', 'stunned', 'flee'];
 
 let G = null, mouse = [0, 0], cw = 0, ch = 0, dpr = 1, zoom = 1, zoomMul = 1;
 const keys = {};
@@ -35,7 +35,8 @@ function loadMission(i) {
     const m = MISSIONS[i];
     const map = m.map.map(r => r.split(''));
     const guards = m.guards.map((g, k) => ({
-        kind: 'guard', path: g.p, boss: !!g.boss, label: g.label || 'Ispettore Acqua', look: g.boss ? BOSS_LOOK : GUARD_LOOK,
+        kind: 'guard', path: g.p, boss: !!g.boss, label: g.label || (g.tag ? 'Ispettore' : ''), look: g.boss ? BOSS_LOOK : g.fat ? { ...GUARD_LOOK, fat: true } : GUARD_LOOK,
+        tag: g.tag || (g.boss ? 'boss' : null), immune: g.immune || [], foodie: !!g.foodie,
         x: g.p[0][0] + .5, y: g.p[0][1] + .5, pi: 0, route: [], mode: 'patrol', timer: 0,
         dir: g.base || 0, base: g.base || 0, sweep: g.sweep || 1,
         speed: g.boss ? 0 : 1.6, fov: g.boss ? 1.5 : 1.25, range: g.boss ? 8.5 : 6.5,
@@ -51,10 +52,7 @@ function loadMission(i) {
             route: [], cd: [0, 0], disguise: 0, want: null, say: null, phase: 0, back: true, flip: false,
             actT: 0, actDur: 0, actKind: null, actProp: undefined, fireT: 0, hitT: 0, seed: k * 2.3, quipT: rnd(8, 20) + k * 4,
         })),
-        objs: m.objectives.map(o => ({
-            ...o, done: false,
-            needAsleep: o.needAsleep === 'boss' ? guards.findIndex(g => g.boss) : null,
-        })),
+        objs: m.steps.map(o => ({ ...o, done: false })),
     };
     const xs = m.starts.map(p => p[0]), ys = m.starts.map(p => p[1]);
     G.safe = { x0: Math.max(1, Math.min(...xs) - 1), x1: Math.min(G.W - 1, Math.max(...xs) + 2), y0: Math.max(1, Math.min(...ys) - 1), y1: Math.min(G.H - 1, Math.max(...ys) + 2) };
@@ -73,9 +71,10 @@ const canDoor = c => c.kind === 'guard' || c.id === 'alcan' || (c.id === 'probos
 function walk(x, y, who) {
     const t = tileAt(x, y);
     if (t === 'K') return !!who && canDoor(who);
-    return !'#TBOC'.includes(t);
+    if (t === 'V') return !!who && who.id === 'alcan';
+    return !'#TBOCDEg'.includes(t);
 }
-const opaqueTile = t => '#TBK'.includes(t);
+const opaqueTile = t => '#TBKV'.includes(t);
 function inSmoke(x, y) { return G.baits.some(b => b.kind === 'smoke' && Math.hypot(b.x - x, b.y - y) < b.r); }
 function opaque(x, y) { return opaqueTile(tileAt(Math.floor(x), Math.floor(y))) || inSmoke(x, y); }
 function los(x0, y0, x1, y1) {
@@ -214,7 +213,7 @@ function castAt(c, k, wx, wy) {
             throwProj(c, wx, wy, 'grill', () => {
                 sfx('sizzle');
                 G.baits.push({ kind: 'smoke', x: wx, y: wy, t: 10, r: 2.4, fx: 0 });
-                lure(wx, wy, 8, 'look', 4, 'Che profumo di brace!');
+                lure(wx, wy, 8, 'look', 4, 'Che profumo di brace!', 'food');
                 pop(wx, wy, 'SFRIIII!', '#ffb02a', 26);
             });
             break;
@@ -228,7 +227,7 @@ function castAt(c, k, wx, wy) {
             break;
         case 'unicorn1': unicornJoke(c); break;
         case 'proboscis0':
-            c.disguise = 10; sfx('poof'); act(c, 'up', .5);
+            c.disguise = 14; sfx('poof'); act(c, 'up', .5);
             burst(14, c.x, c.y, () => ({ kind: 'puff', z: rnd(10, 50), vx: rnd(-1, 1), vy: rnd(-1, 1), vz: rnd(10, 30), size: rnd(10, 16), grow: .8, max: .9, col: '#f4f4f4' }));
             pop(c.x, c.y, 'TA-DAN!', '#7ec0ee', 28);
             break;
@@ -242,6 +241,19 @@ function castAt(c, k, wx, wy) {
 }
 
 function awake(g) { return !BLIND.includes(g.mode); }
+const IMMUNE_LINES = {
+    sleep: ['Ho bevuto quattro caffè, non dormo!', 'Sonno? Mai sentito.'],
+    punch: ['Mi hai fatto il solletico.', 'Troppo piccolo, amico.'],
+    laugh: ['Non fa ridere.', 'Ho zero senso dell\'umorismo.'],
+    stun: ['Ho visto di meglio.', 'Niente di che.'],
+    flee: ['Il fuoco non mi spaventa.'],
+    lure: ['Non mi muovo da qui.', 'Resto al mio posto.'],
+};
+function immune(g, kind) {
+    if (!g.immune.includes(kind)) return false;
+    if (!(g.say && g.say.t < 1)) talk(g, pick(IMMUNE_LINES[kind]), 2);
+    return true;
+}
 function inReach(c, r, needLos = true) {
     return G.guards.filter(g => awake(g) && Math.hypot(g.x - c.x, g.y - c.y) < r && (!needLos || los(c.x, c.y, g.x, g.y)));
 }
@@ -257,6 +269,7 @@ function esticeGas(c) {
 function alcanPunch(c) {
     const g = inReach(c, c.ab[1].range).sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))[0];
     if (!g) { toast('Nessuno a portata... per sua fortuna!'); talk(c, 'Dove siete, codardi?!', 1.8, true); return false; }
+    if (immune(g, 'punch')) { act(c, 'punch', .5); sfx('punch'); toast(g.label + ': immune ai pugni.'); return true; }
     const d = Math.hypot(g.x - c.x, g.y - c.y);
     if (d > .7) { c.x = g.x - (g.x - c.x) / d * .7; c.y = g.y - (g.y - c.y) / d * .7; }
     c.route = []; face(c, g.x - c.x, g.y - c.y);
@@ -275,6 +288,7 @@ function emberLand(x, y) {
     G.guards.forEach(g => {
         if (!awake(g) || Math.hypot(g.x - x, g.y - y) > 2.4) return;
         if (g.boss) { talk(g, 'Brace?! Che maleducazione!', 2.4, true); return; }
+        if (immune(g, 'flee')) return;
         flee(g, x, y);
     });
 }
@@ -295,7 +309,7 @@ function potionLand(x, y) {
     burst(22, x, y, () => ({ kind: 'bubble', z: rnd(0, 20), vx: rnd(-1.2, 1.2), vy: rnd(-1.2, 1.2), vz: rnd(20, 60), size: rnd(3, 7), max: rnd(.8, 1.5), col: 'rgba(255,200,40,.6)' }));
     let n = 0;
     G.guards.forEach(g => {
-        if (Math.hypot(g.x - x, g.y - y) < 1.9 && g.mode !== 'sleep') { sleepGuard(g, g.boss ? 16 : 14, pick(GUARD_LINES.sleep)); n++; }
+        if (Math.hypot(g.x - x, g.y - y) < 1.9 && g.mode !== 'sleep' && !immune(g, 'sleep')) { sleepGuard(g, g.boss ? 16 : 14, pick(GUARD_LINES.sleep)); n++; }
     });
     toast(n ? 'Pozione al luppolo: nanna!' : 'Pozione sprecata... nessuno nel raggio.');
 }
@@ -308,7 +322,7 @@ function unicornJoke(c) {
         if (!hit.length) { toast('Nessuno ha riso. Silenzio imbarazzante.'); sfx('lose'); return; }
         sfx('laugh');
         pop(c.x, c.y, 'AHAHAH!', '#f07ab8', 36);
-        hit.forEach(g => { g.mode = 'laugh'; g.timer = 6; g.route = []; g.meter = 0; talk(g, pick(GUARD_LINES.laugh), 2.4, true); });
+        hit.forEach(g => { if (immune(g, 'laugh')) return; g.mode = 'laugh'; g.timer = 8; g.route = []; g.meter = 0; talk(g, pick(GUARD_LINES.laugh), 2.4, true); });
     });
 }
 
@@ -320,6 +334,7 @@ function proboscisWow(c) {
         const hit = inReach(c, c.ab[1].range);
         if (!hit.length) toast('Nessuno ha visto. Peccato.');
         hit.forEach(g => {
+            if (immune(g, 'stun')) return;
             g.mode = 'stunned'; g.timer = 7; g.route = []; g.meter = 0;
             face(g, c.x - g.x, c.y - g.y);
             g.dir = Math.atan2(c.y - g.y, c.x - g.x);
@@ -331,13 +346,16 @@ function proboscisWow(c) {
 
 function sleepGuard(g, t, txt) { g.mode = 'sleep'; g.timer = t; g.route = []; g.meter = 0; talk(g, txt); sfx('sleep'); }
 
-function lure(x, y, range, mode, dur, msg) {
+function lure(x, y, range, mode, dur, msg, kind = 'lure') {
     G.guards.forEach(g => {
         if (g.boss || !['patrol', 'look', 'goto'].includes(g.mode)) return;
         if (Math.hypot(g.x - x, g.y - y) > range) return;
+        let after = { mode, dur, msg };
+        if (kind === 'food' && g.foodie) after = { mode: 'eat', dur: 14, msg: 'Salsicce! Le mie preferite!' };
+        else if (g.immune.includes('lure')) return;
         const r = bfs(Math.floor(g.x), Math.floor(g.y), Math.floor(x), Math.floor(y), g);
         if (!r) return;
-        g.mode = 'goto'; g.route = r; g.after = { mode, dur, msg };
+        g.mode = 'goto'; g.route = r; g.after = after;
         talk(g, pick(GUARD_LINES.lure), 1.2);
         part({ kind: 'text', x: g.x, y: g.y, z: 75, vz: 25, txt: '?', col: '#ffd23f', size: 22, max: 1 });
     });
@@ -351,7 +369,7 @@ function explode(d) {
             burst(14, i + .5, j + .5, () => ({ kind: 'debris', z: 20, vx: rnd(-3, 3), vy: rnd(-3, 3), vz: rnd(150, 280), g: 520, size: rnd(3, 5), max: 1.8, col: pick(['#a8763f', '#ffd23f', '#8a5a2b']), rot: rnd(0, 6), vr: rnd(-12, 12) }));
         }
     }
-    G.guards.forEach(g => { if (!g.boss && Math.hypot(g.x - d.x, g.y - d.y) < 1.8) { g.hitT = .5; sleepGuard(g, 5, 'Bzzzz... stordito'); } });
+    G.guards.forEach(g => { if (!g.boss && Math.hypot(g.x - d.x, g.y - d.y) < 1.8) { g.hitT = .5; if (!g.immune.includes('sleep')) sleepGuard(g, 5, 'Bzzzz... stordito'); } });
     G.chars.forEach(c => { if (Math.hypot(c.x - d.x, c.y - d.y) < 2.5) c.hitT = .5; });
     explosionFx(d.x, d.y);
     pop(d.x, d.y, 'BOOM!', '#ff8a1a', 52);
@@ -359,28 +377,69 @@ function explode(d) {
     lure(d.x, d.y, 10, 'look', 5, 'Cos\'è stato?!');
 }
 
-// ---------- interazione ----------
+// ---------- interazione e step ----------
+const charName = id => CHARS.find(c => c.id === id).name;
+const stepReady = o => (o.after || []).every(id => G.objs.find(x => x.id === id).done);
+const bossGuard = () => G.guards.find(g => g.boss);
+
 function interact(c) {
-    const o = G.objs.find(o => !o.done && Math.hypot(c.x - (o.x + .5), c.y - (o.y + .5)) < 1.9);
+    const o = G.objs.find(o => !o.done && o.x != null && Math.hypot(c.x - (o.x + .5), c.y - (o.y + .5)) < 1.9);
     if (!o) { toast('Qui non c\'è niente da fare.'); return false; }
-    if (o.needChar && c.id !== o.needChar) { toast(o.lock); talk(c, 'Non sono capace... chiamate un esperto!'); return false; }
-    if (o.needAsleep != null && G.guards[o.needAsleep].mode !== 'sleep') { toast(o.lock); talk(G.guards[o.needAsleep], pick(GUARD_LINES.boss), 2.4, true); return false; }
+    if (!stepReady(o)) {
+        const miss = o.after.map(id => G.objs.find(x => x.id === id)).filter(x => !x.done);
+        toast('Prima: ' + miss.map(x => x.text).join(' · '), 3500);
+        return false;
+    }
+    if (o.who && c.id !== o.who) { toast('Serve ' + charName(o.who) + ': ' + o.text, 3200); talk(c, 'Non sono capace... chiamate ' + charName(o.who) + '!'); return false; }
+    if (o.disguise && !(c.disguise > 0)) { toast('Proboscis deve prima indossare il completo da agente (Q).', 3200); talk(c, 'Così in maglietta non mi prendono sul serio.'); return false; }
+    if (o.asleep === 'boss' && bossGuard().mode !== 'sleep') { toast(o.lock); talk(bossGuard(), pick(GUARD_LINES.boss), 2.4, true); return false; }
+    completeStep(o, c);
+    return true;
+}
+
+function completeStep(o, c) {
     o.done = true;
-    toast(o.msg, 4000);
+    toast('✔ ' + o.msg, 4000);
     sfx('objective');
-    const ox = o.x + .5, oy = o.y + .5;
-    pop(ox, oy, o.pop, '#7fff7a', 40);
-    act(c, 'up', 1.4);
-    talk(c, pick(['EVVAI!', 'Sììì!', 'Siamo leggenda!', 'Missione compiuta!']), 2, true);
-    burst(40, ox, oy, () => ({ kind: 'confetti', z: 60, vx: rnd(-2.5, 2.5), vy: rnd(-2.5, 2.5), vz: rnd(80, 220), g: 240, max: 2.2, col: pick(['#ff4a6a', '#ffd23f', '#4ad0ff', '#7fff7a', '#c07aff']), rot: rnd(0, 6), vr: rnd(-8, 8) }));
-    if (o.kind === 'grill') { c.fireT = 2; burst(24, ox, oy, () => ({ kind: 'fire', z: 24, vx: rnd(-1, 1), vy: rnd(-1, 1), vz: rnd(40, 120), size: rnd(8, 14), max: rnd(.6, 1.1) })); }
+    const [ox, oy] = o.x != null ? [o.x + .5, o.y + .5] : c ? [c.x, c.y] : [G.chars[G.sel].x, G.chars[G.sel].y];
+    pop(ox, oy, o.pop || 'FATTO!', '#7fff7a', 36);
+    if (c) { act(c, 'up', 1.4); talk(c, pick(['EVVAI!', 'Sììì!', 'Siamo leggenda!', 'Fatto!']), 2, true); }
+    burst(30, ox, oy, () => ({ kind: 'confetti', z: 60, vx: rnd(-2.5, 2.5), vy: rnd(-2.5, 2.5), vz: rnd(80, 220), g: 240, max: 2.2, col: pick(['#ff4a6a', '#ffd23f', '#4ad0ff', '#7fff7a', '#c07aff']), rot: rnd(0, 6), vr: rnd(-8, 8) }));
+    if (o.kind === 'grill' && c) { c.fireT = 2; burst(24, ox, oy, () => ({ kind: 'fire', z: 24, vx: rnd(-1, 1), vy: rnd(-1, 1), vz: rnd(40, 120), size: rnd(8, 14), max: rnd(.6, 1.1) })); }
+    if (o.opens) openGates(o.opens);
+    if (o.feast) feast(ox, oy);
     refreshHud();
     if (G.objs.every(x => x.done)) {
         G.state = 'won';
         later(1.2, () => sfx('win'));
         setTimeout(showOutro, 2600);
     }
-    return true;
+}
+
+function openGates(ch) {
+    G.map.forEach((r, j) => r.forEach((t, i) => {
+        if (t !== ch) return;
+        r[i] = ',';
+        burst(10, i + .5, j + .5, () => ({ kind: 'spark', z: 20, vx: rnd(-1.5, 1.5), vy: rnd(-1.5, 1.5), vz: rnd(60, 140), g: 300, size: 3, max: .8, col: '#ffe14a' }));
+        pop(i + .5, j + .5, 'CLANK!', '#c8d0d8', 26);
+    }));
+    sfx('whoosh');
+}
+
+// La griglia gigante attira tutte le guardie raggiungibili.
+function feast(x, y) {
+    G.guards.forEach(g => {
+        if (g.boss || g.mode === 'sleep') return;
+        const r = bfs(Math.floor(g.x), Math.floor(g.y), Math.floor(x), Math.floor(y), g);
+        if (!r) return;
+        g.mode = 'goto'; g.route = r; g.susp = false; g.meter = 0;
+        g.after = { mode: 'eat', dur: 35, msg: pick(['ARROSTICINI!!', 'Uno solo... dai...', 'Che profumo!']) };
+        talk(g, 'Arrosticini?!', 1.5, true);
+    });
+}
+
+function checkSteps() {
+    G.objs.forEach(o => { if (!o.done && o.cond && stepReady(o) && o.cond(G)) completeStep(o, o.who ? G.chars.find(c => c.id === o.who) : null); });
 }
 
 function select(i) {
@@ -433,11 +492,12 @@ function updateGuard(g, dt) {
         if (g.timer <= 0) { g.mode = 'patrol'; g.route = []; talk(g, pick(GUARD_LINES.wake)); }
         return;
     }
-    if (['drink', 'look', 'laugh', 'stunned', 'flee'].includes(g.mode)) {
+    if (['drink', 'eat', 'look', 'laugh', 'stunned', 'flee'].includes(g.mode)) {
         g.timer -= dt;
         if (g.mode === 'look') g.dir += Math.sin(G.t * 2.5) * dt * 1.2;
         if (g.mode === 'flee' && g.route.length) { walkGuard(g, 3.4, dt); g.moving = true; }
         if (g.mode === 'laugh' && g.fxT <= 0) { g.fxT = .35; part({ kind: 'text', x: g.x + rnd(-.3, .3), y: g.y, z: 60, vz: 40, txt: pick(['HA', 'AH', 'HAHA']), col: '#ffd23f', size: 12, max: .8 }); }
+        if (g.mode === 'eat' && g.fxT <= 0) { g.fxT = .6; part({ kind: 'text', x: g.x, y: g.y, z: 60, vz: 30, txt: pick(['GNAM', 'SLURP', 'CRUNCH']), col: '#ffb02a', size: 11, max: .9 }); }
         if (g.mode === 'drink' && g.fxT <= 0) { g.fxT = .5; part({ kind: 'bubble', x: g.x, y: g.y, z: 55, vz: 20, size: 3, max: 1, col: 'rgba(255,200,90,.6)' }); }
         if (g.mode === 'flee' && g.fxT <= 0) { g.fxT = .25; part({ kind: 'spark', x: g.x, y: g.y, z: 60, vx: rnd(-1, 1), vz: 40, g: 200, size: 3, max: .6, col: '#7ec0ee' }); }
         if (g.timer <= 0) { g.mode = 'patrol'; g.route = []; }
@@ -563,10 +623,11 @@ function update(dt) {
                 if (b.fx <= 0 && b.t > 1) { b.fx = b.kind === 'gas' ? .12 : .09; smokeAt(b.x, b.y, b.r * .8, b.kind === 'gas' ? '#9ad84a' : '#d8d8d8', b.kind === 'gas' && Math.random() < .15 ? '☠' : null); }
             }
             if (b.kind === 'gas') G.guards.forEach(g => {
-                if (g.mode !== 'sleep' && Math.hypot(g.x - b.x, g.y - b.y) < b.r) { sleepGuard(g, g.boss ? 10 : 8, pick(GUARD_LINES.gas)); g.hitT = .3; }
+                if (g.mode !== 'sleep' && Math.hypot(g.x - b.x, g.y - b.y) < b.r && !g.immune.includes('sleep')) { sleepGuard(g, g.boss ? 10 : 8, pick(GUARD_LINES.gas)); g.hitT = .3; }
             });
         });
         G.baits = G.baits.filter(b => b.t > 0);
+        checkSteps();
         if (G.t > 4) detect(dt);
     } else {
         G.chars.forEach(c => { if (c.actKind) { c.actT += dt; if (c.actT >= c.actDur) c.actKind = null; } });
@@ -612,7 +673,7 @@ function ambient(dt) {
     if (G.ambT > 0) return;
     G.ambT = .25;
     const th = G.m.theme;
-    if (th.steam) G.objs.forEach(o => part({ kind: 'puff', x: o.x + .5, y: o.y + .5, z: 90, vz: rnd(15, 30), vx: rnd(-.2, .2), size: rnd(6, 10), grow: 1.5, max: 2, col: '#ffffff', alpha: o.done ? .6 : .25 }));
+    if (th.steam) G.objs.filter(o => o.kind === 'tank').forEach(o => part({ kind: 'puff', x: o.x + .5, y: o.y + .5, z: 90, vz: rnd(15, 30), vx: rnd(-.2, .2), size: rnd(6, 10), grow: 1.5, max: 2, col: '#ffffff', alpha: o.done ? .6 : .25 }));
     if (th.prop === 'table' && Math.random() < .6) {
         const cs = [];
         G.map.forEach((r, j) => r.forEach((t, i) => t === 'C' && cs.push([i, j])));
@@ -621,7 +682,7 @@ function ambient(dt) {
     }
     (G.m.signs || []).forEach(s => { if (Math.random() < .25) part({ kind: 'text', x: s.x + rnd(-.5, .5), y: s.y, z: 140, vz: 25, vx: rnd(-.4, .4), txt: pick(['♪', '♫']), col: '#ff9abf', size: 16, max: 2 }); });
     G.objs.forEach(o => {
-        if (!o.done) return;
+        if (!o.done || o.x == null) return;
         if (o.kind === 'tap') part({ kind: 'bubble', x: o.x + .7, y: o.y + .5, z: 45, vz: rnd(10, 30), size: rnd(2, 4), max: 1.2, col: 'rgba(255,240,200,.7)' });
         if (o.kind === 'grill') for (let k = 0; k < 3; k++) part({ kind: 'fire', x: o.x + rnd(0, 1), y: o.y + rnd(.2, .8), z: 26, vz: rnd(20, 50), size: rnd(4, 8), max: .6 });
     });
@@ -636,13 +697,17 @@ function ell(x, y, rx, ry, fill, stroke, lw = 2) {
 }
 const ringR = r => [r * 32 * 1.4142, r * 16 * 1.4142];
 
+function floorUnder(i, j) {
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const t = tileAt(i + dx, j + dy); if (',.p'.includes(t)) return t; }
+    return 'p';
+}
 function floorFill(t, th) {
     const kind = th.mat[t] || 'concrete', base = t === 'p' ? th.p : t === '.' ? th.c : th.a;
     return pattern(kind, base, 'floor');
 }
 
 function drawWall(i, j, th) {
-    const H = j === G.H - 1 || i === G.W - 1 ? 10 : 42, w = (a, b) => tileAt(a, b) === '#';
+    const H = j === G.H - 1 || i === G.W - 1 ? 10 : 42, w = (a, b) => '#V'.includes(tileAt(a, b));
     const a = iso(i, j + 1), b = iso(i + 1, j + 1), c = iso(i + 1, j), d = iso(i, j), up = p => [p[0], p[1] - H];
     const mat = th.stripes ? 'canvas' : 'brick';
     const sV = !w(i, j + 1), eV = !w(i + 1, j);
@@ -681,6 +746,10 @@ function drawBlock(i, j, t, th) {
         case '#': drawWall(i, j, th); break;
         case 'T': drawTree(i, j, Math.floor(G.t * STOP) / STOP); break;
         case 'C': drawProp3D(th.prop, i, j, G.t); break;
+        case 'D': drawProp3D('table', i, j, G.t); break;
+        case 'E': drawProp3D('barrel', i, j, G.t); break;
+        case 'V': drawWall(i, j, th); drawVent(i, j); break;
+        case 'g': drawGate(i, j, G.t); break;
         case 'B': drawBarricade(i, j, G.t); break;
         case 'K': drawDoor(i, j, G.t); break;
         case 'O': drawObjective(G.objs.find(o => o.x === i && o.y === j), i, j, G.t, th); break;
@@ -769,7 +838,8 @@ function poseOf(e, ts) {
     const P = { back: e.back, flip: e.flip, phase: Math.floor(e.phase * 2) / 2, moving: e.moving, t: ts, expr: 'normal', arm: 'idle', blink: ((G.t + e.seed) % 3.4) < .12 };
     if (e.kind === 'guard') {
         face(e, Math.cos(e.dir), Math.sin(e.dir)); P.back = e.back; P.flip = e.flip;
-        const m = { sleep: ['sleep', 'idle'], laugh: ['laugh', 'belly'], stunned: ['stunned', 'idle'], flee: ['shock', 'up'], drink: ['drunk', 'drink'] }[e.mode];
+        const m = { sleep: ['sleep', 'idle'], laugh: ['laugh', 'belly'], stunned: ['stunned', 'idle'], flee: ['shock', 'up'], drink: ['drunk', 'drink'], eat: ['grin', 'drink'] }[e.mode];
+        if (e.mode === 'eat') P.prop = 'skewer';
         if (m) [P.expr, P.arm] = m;
         if (e.mode === 'drink') P.prop = 'whisky';
         if (e.mode === 'stunned' || e.mode === 'flee') P.prop = null;
@@ -822,7 +892,7 @@ function render() {
     for (let j = 0; j < G.H; j++) for (let i = 0; i < G.W; i++) {
         const t = G.map[j][i];
         const pts = [iso(i, j), iso(i + 1, j), iso(i + 1, j + 1), iso(i, j + 1)];
-        poly(pts, floorFill(t === 'O' ? 'p' : '#TCBK'.includes(t) ? ',' : t, th));
+        poly(pts, floorFill(t === 'O' || t === 'D' || t === 'E' ? floorUnder(i, j) : '#TCBKVg'.includes(t) ? ',' : t, th));
         ctx.fillStyle = `rgba(0,0,0,${hash(i, j) * .07})`; ctx.fill();
     }
     if (G.marker) {
@@ -850,7 +920,7 @@ function render() {
     const list = [];
     for (let j = 0; j < G.H; j++) for (let i = 0; i < G.W; i++) {
         const t = G.map[j][i];
-        if ('#TCBKO'.includes(t)) list.push({ d: i + j + 1, f: () => drawBlock(i, j, t, th) });
+        if ('#TCBKODEVg'.includes(t)) list.push({ d: i + j + 1, f: () => drawBlock(i, j, t, th) });
     }
     G.chars.forEach(ch => list.push({ d: ch.x + ch.y, f: () => drawEntity(ch) }));
     G.guards.forEach(g => list.push({ d: g.x + g.y, f: () => drawEntity(g) }));
@@ -880,6 +950,36 @@ function render() {
     G.parts.filter(p => p.kind === 'pop').forEach(drawParticle);
     ctx.restore();
 }
+
+// ---------- minimappa ----------
+const mini = $('mini'), mctx = mini.getContext('2d');
+let miniK = 1, miniOX = 0;
+function drawMini() {
+    const MW = 190, k = MW / ((G.W + G.H) * 32), MH = Math.ceil((G.W + G.H) * 16 * k) + 8;
+    if (mini.width !== MW * dpr || mini.height !== MH * dpr) { mini.width = MW * dpr; mini.height = MH * dpr; mini.style.width = MW + 'px'; mini.style.height = MH + 'px'; }
+    miniK = k; miniOX = G.H * 32 * k;
+    const c = mctx;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, MW, MH);
+    c.setTransform(dpr * k, 0, 0, dpr * k, dpr * miniOX, dpr * 4);
+    const dia = (i, j, col) => { c.fillStyle = col; c.beginPath(); const p = [iso(i, j), iso(i + 1, j), iso(i + 1, j + 1), iso(i, j + 1)]; p.forEach((q, n) => n ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); c.fill(); };
+    for (let j = 0; j < G.H; j++) for (let i = 0; i < G.W; i++) {
+        const t = G.map[j][i];
+        dia(i, j, t === '#' ? '#3a2a1e' : t === 'V' ? '#f2c618' : t === 'K' ? '#3d5a8a' : t === 'g' ? '#9aa0a6' : t === 'B' ? '#c2553d' : 'TCDE'.includes(t) ? '#5f6a4a' : t === 'p' ? '#a07850' : '#b8b2a4');
+    }
+    const z = G.safe; c.fillStyle = 'rgba(70,220,110,.45)';
+    c.beginPath(); [iso(z.x0, z.y0), iso(z.x1, z.y0), iso(z.x1, z.y1), iso(z.x0, z.y1)].forEach((q, n) => n ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); c.fill();
+    const dot = (x, y, r, col) => { const [a, b] = iso(x, y); c.beginPath(); c.arc(a, b, r / k, 0, 7); c.fillStyle = col; c.fill(); };
+    G.objs.forEach(o => { if (o.x != null) dot(o.x + .5, o.y + .5, 3.5, o.done ? '#3fdc6a' : stepReady(o) ? '#ffd23f' : '#8a8f96'); });
+    G.guards.forEach(g => dot(g.x, g.y, 2.4, awake(g) ? (g.meter > .15 ? '#ff7a1a' : '#ff3a3a') : '#7ec0ee'));
+    G.chars.forEach((ch, i) => dot(ch.x, ch.y, i === G.sel ? 3.2 : 2.4, i === G.sel ? '#ffffff' : '#7fff9a'));
+    c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 1.5 / k;
+    c.strokeRect(G.cam.x - cw / 2 / zoom, G.cam.y - ch / 2 / zoom, cw / zoom, ch / zoom);
+}
+mini.addEventListener('pointerdown', e => {
+    if (!G) return;
+    const r = mini.getBoundingClientRect();
+    G.cam.x = (e.clientX - r.left - miniOX) / miniK; G.cam.y = (e.clientY - r.top - 4) / miniK; G.free = true;
+});
 
 function drawCone(g) {
     if (!awake(g)) return;
@@ -966,7 +1066,8 @@ function showBrief(i) {
     auInit();
     cutscene(MISSIONS[i].intro, () => {
         const m = MISSIONS[i];
-        screen('<h2>' + m.name + '</h2><ul class="objl">' + m.objectives.map(o => '<li>' + o.text + '</li>').join('') + '</ul>' +
+        screen('<h2>' + m.name + '</h2><p>Ognuno ha un compito che solo lui può svolgere. Alcuni compiti si sbloccano solo dopo altri.</p><ul class="objl">' +
+            m.steps.map(o => '<li><b>' + (o.who ? charName(o.who) : 'Chiunque') + '</b>: ' + o.text + '</li>').join('') + '</ul>' +
             '<p class="small">Suggerimento: ' + m.hint + '</p>' +
             '<button class="btn" onclick="begin(' + i + ')">Inizia missione</button><button class="btn ghost" onclick="showTitle()">Indietro</button>');
     });
@@ -986,7 +1087,11 @@ function begin(i) {
 
 function refreshHud() {
     if (!G) return;
-    $('objs').innerHTML = G.objs.map(o => `<li class="${o.done ? 'done' : ''}">${o.text}</li>`).join('');
+    $('objs').innerHTML = G.objs.map(o => {
+        const st = o.done ? 'done' : stepReady(o) ? 'ready' : 'locked';
+        const who = o.who ? `<b>${charName(o.who)}</b>` : '<b>Chiunque</b>';
+        return `<li class="${st}">${o.done ? '✔' : st === 'locked' ? '🔒' : '▶'} ${who}: ${o.text}</li>`;
+    }).join('');
     document.querySelectorAll('.ch').forEach((b, i) => b.classList.toggle('sel', i === G.sel));
     const c = G.chars[G.sel];
     ['bAbil', 'bAbil2'].forEach((id, k) => {
@@ -1054,7 +1159,7 @@ function loop(ts) {
     if (G) {
         update(dt);
         const f = Math.floor(ts / 1000 * STOP);
-        if (f !== lastF) { lastF = f; render(); postProcess(cv, ctx, cw, ch, dpr, f); }
+        if (f !== lastF) { lastF = f; render(); postProcess(cv, ctx, cw, ch, dpr, f); drawMini(); }
     } else { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = '#111'; ctx.fillRect(0, 0, cw, ch); }
     requestAnimationFrame(loop);
 }

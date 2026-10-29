@@ -552,3 +552,61 @@ body {
     border-bottom-width: 20px;
     border-radius: 2px
 }
+
+/* ---------- step concatenati e minimappa ---------- */
+#objs {
+    list-style: none;
+    padding-left: 0;
+    max-height: 40vh;
+    overflow: auto
+}
+
+#objs li {
+    margin: 3px 0;
+    font-size: 13px
+}
+
+#objs li.locked {
+    opacity: .55
+}
+
+#objs li.ready {
+    font-weight: bold
+}
+
+#objs li b {
+    color: #7a2a10
+}
+
+#mini {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    pointer-events: auto;
+    cursor: crosshair;
+    background: rgba(20, 14, 8, .75);
+    border: 3px solid #c9a36a;
+    border-radius: 6px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, .55)
+}
+
+@media (max-width:700px) {
+    #mini {
+        transform: scale(.7);
+        transform-origin: bottom left
+    }
+}
+
+#top {
+    max-width: min(370px, 46vw);
+    padding: 7px 10px
+}
+
+#top b#mtitle {
+    font-size: 13px
+}
+
+#objs li {
+    font-size: 11.5px;
+    line-height: 1.3
+}

@@ -766,6 +766,9 @@ function drawObjective(o, i, j, t, theme) {
             }
             break;
         }
+        case 'valve': case 'contract': case 'reception': case 'boiler': case 'sacks': case 'panel': case 'crate': case 'safe':
+            drawStation(o.kind, i, j, sx, sy, t, done);
+            break;
         case 'desk':
             box(i - .3, j + .1, i + 1.3, j + .9, 20, pattern('wood', '#8a5a2b', 'floor'), '#6e4520', '#5a381a');
             X.save(); X.shadowColor = 'rgba(0,0,0,.3)'; X.shadowOffsetY = 1.5;
@@ -778,10 +781,12 @@ function drawObjective(o, i, j, t, theme) {
             break;
     }
     if (!done) {
-        const b = Math.sin(t * 5) * 6, ay = sy - (o && o.kind === 'tank' ? 100 : 76);
+        const ready = !o || typeof stepReady !== 'function' || stepReady(o);
+        const b = ready ? Math.sin(t * 5) * 6 : 0, ay = sy - (o && o.kind === 'tank' ? 100 : 76);
         X.save(); X.translate(sx, ay + b);
         X.shadowColor = 'rgba(0,0,0,.4)'; X.shadowOffsetX = 2; X.shadowOffsetY = 3; X.shadowBlur = 2;
-        poly([[-10, -11], [10, -11], [0, 4]], '#f2c618');
+        if (ready) poly([[-10, -11], [10, -11], [0, 4]], '#f2c618');
+        else { rr(-7, -6, 14, 11, 2); X.fillStyle = '#8a8f96'; X.fill(); X.shadowColor = 'transparent'; X.strokeStyle = '#8a8f96'; X.lineWidth = 2.4; X.beginPath(); X.arc(0, -6, 4.5, Math.PI, 0); X.stroke(); }
         X.restore();
     }
 }
@@ -873,4 +878,106 @@ function postProcess(cv, ctx, cw, ch, dpr, frame) {
     ctx.translate(-hash(frame, 2) * 160, -hash(frame, 3) * 160);
     ctx.fillRect(0, 0, cw + 160, ch + 160);
     ctx.restore();
+}
+
+// ---------- postazioni degli step ----------
+function metal(x0, x1, dark) {
+    const g = X.createLinearGradient(x0, 0, x1, 0);
+    g.addColorStop(0, shade(dark, -30)); g.addColorStop(.3, shade(dark, 60)); g.addColorStop(.6, dark); g.addColorStop(1, shade(dark, -50));
+    return g;
+}
+function drawStation(kind, i, j, sx, sy, t, done) {
+    X.beginPath(); X.ellipse(sx + 4, sy + 2, 20, 8, 0, 0, 7); X.fillStyle = 'rgba(0,0,0,.25)'; X.fill();
+    switch (kind) {
+        case 'valve': // bombola CO2
+            [-9, 0, 9].forEach((dx, k) => {
+                rr(sx + dx - 5, sy - 46 + k * 3, 10, 44 - k * 3, 5); X.fillStyle = metal(sx + dx - 5, sx + dx + 5, k === 1 ? '#4a7a5a' : '#6a7078'); X.fill();
+                ellp(sx + dx, sy - 46 + k * 3, 5, 2, '#9aa0a6');
+            });
+            X.save(); X.translate(sx, sy - 52); X.rotate(done ? t * 4 : 0);
+            X.strokeStyle = done ? '#2a8a48' : '#c62b22'; X.lineWidth = 2.4; X.beginPath(); X.arc(0, 0, 5, 0, 7); X.moveTo(-5, 0); X.lineTo(5, 0); X.moveTo(0, -5); X.lineTo(0, 5); X.stroke();
+            X.restore();
+            break;
+        case 'contract':
+        case 'reception':
+            box(i - .2, j + .15, i + 1.2, j + .85, 22, pattern('wood', kind === 'reception' ? '#d9c9a8' : '#8a5a2b', 'floor'), kind === 'reception' ? '#b8a684' : '#6e4520', kind === 'reception' ? '#9a8a6a' : '#5a381a');
+            X.save(); X.shadowColor = 'rgba(0,0,0,.3)'; X.shadowOffsetY = 1.5;
+            rr(sx - 10, sy - 30, 14, 9, .5); X.fillStyle = '#fbf8ee'; X.fill(); X.restore();
+            X.fillStyle = '#555'; X.font = 'bold 3px sans-serif'; X.textAlign = 'center';
+            X.fillText(kind === 'reception' ? 'REGISTRO' : 'CONTRATTO', sx - 3, sy - 24.5);
+            if (kind === 'reception') { sph(sx + 9, sy - 26, 4, 3, '#e8c84a'); sph(sx + 9, sy - 29.5, 1, 1, '#e8c84a'); }
+            else limb(sx + 6, sy - 26, sx + 13, sy - 37, 1.3, '#222222');
+            if (done) {
+                X.save(); X.translate(sx - 3, sy - 26); X.rotate(-.3);
+                X.strokeStyle = '#2a8a48'; X.lineWidth = 1; X.strokeRect(-6, -3, 12, 6);
+                X.fillStyle = '#2a8a48'; X.font = 'bold 3.6px sans-serif'; X.textAlign = 'center'; X.fillText('APPROVATO', 0, 1.3); X.restore();
+            }
+            break;
+        case 'boiler':
+            box(i - .15, j + .1, i + 1.15, j + .95, 40, '#3a3a3a', '#2a2a2a', '#1a1a1a');
+            limb(sx + 10, sy - 40, sx + 10, sy - 70, 6, '#555555');
+            rr(sx - 12, sy - 26, 12, 12, 2); X.fillStyle = '#111'; X.fill();
+            if (done) {
+                X.save(); X.globalCompositeOperation = 'lighter';
+                const f = 4 + Math.sin(t * 14) * 1.5;
+                rr(sx - 11, sy - 25, 10, 10, 2); X.fillStyle = 'rgba(255,120,30,.9)'; X.fill();
+                circ(sx - 6, sy - 20, f, 'rgba(255,230,120,.8)', 0);
+                X.globalAlpha = .3; circ(sx - 6, sy - 20, 16, '#ff7a1a', 0); X.restore();
+            }
+            sph(sx + 2, sy - 34, 3.5, 3.5, '#e8e8e8');
+            X.strokeStyle = '#c62b22'; X.lineWidth = 1; X.beginPath(); X.moveTo(sx + 2, sy - 34); X.lineTo(sx + 2 + (done ? 2.5 : -2), sy - 36.5); X.stroke();
+            break;
+        case 'sacks':
+            [[-10, 2], [8, 3], [-1, -6]].forEach(([dx, dy], k) => {
+                if (done && k === 2) return;
+                const x = sx + dx, y = sy + dy;
+                sph(x, y - 10, 9, 11, '#b8955a');
+                X.fillStyle = 'rgba(70,40,10,.25)'; for (let n = 0; n < 6; n++) X.fillRect(x - 6 + n * 2, y - 18, .6, 14);
+                limb(x, y - 21, x, y - 25, 3, '#8a6a3a');
+                X.fillStyle = '#3f7a2a'; X.font = 'bold 4px sans-serif'; X.textAlign = 'center'; X.fillText('HOPS', x, y - 9);
+            });
+            break;
+        case 'panel':
+            box(i + .15, j + .1, i + .85, j + .6, 46, '#8a9098', '#6a7078', '#4a5058');
+            for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+                const on = done ? (r + c) % 2 === 0 : Math.sin(t * 6 + r * 2 + c) > 0;
+                sph(sx - 9 + c * 5, sy - 38 + r * 6, 1.6, 1.6, done ? '#3fdc6a' : on ? '#ff3a3a' : '#601818');
+            }
+            rr(sx + 4, sy - 40, 6, 14, 1); X.fillStyle = '#222'; X.fill();
+            X.fillStyle = '#ffd23f'; X.font = 'bold 3.5px sans-serif'; X.textAlign = 'center'; X.fillText(done ? 'OFF' : 'SIGILLI', sx - 4, sy - 16);
+            break;
+        case 'crate':
+            box(i + .1, j + .1, i + .9, j + .9, 18, pattern('wood', '#9a6a3a', 'floor'), '#7a4a22', '#5a3416');
+            if (!done) for (let n = 0; n < 9; n++) sph(sx - 9 + (n % 3) * 9 + (n > 2 ? 2 : 0), sy - 20 - Math.floor(n / 3) * 2.5, 3.5, 2.6, '#2a2a2a');
+            break;
+        case 'safe':
+            box(i + .1, j + .15, i + .9, j + .85, 30, '#6a7078', '#4a5058', '#3a3f46');
+            sph(sx - 4, sy - 16, 5, 5, '#c8ccd2');
+            X.strokeStyle = '#222'; X.lineWidth = 1; X.beginPath(); X.moveTo(sx - 4, sy - 16); X.lineTo(sx - 4 + Math.cos(done ? 1 : t) * 4, sy - 16 + Math.sin(done ? 1 : t) * 4); X.stroke();
+            if (done) { rr(sx + 2, sy - 26, 9, 14, 1); X.fillStyle = '#111'; X.fill(); }
+            break;
+    }
+}
+
+function drawVent(i, j) {
+    const [sx, sy] = iso(i + .5, j + 1);
+    X.save(); X.translate(sx, sy - 12); X.transform(1, -.5, 0, 1, 0, 0);
+    rr(-9, -9, 18, 11, 1.5); X.fillStyle = '#1a1a1a'; X.fill();
+    X.strokeStyle = '#9aa0a6'; X.lineWidth = 1.4; X.strokeRect(-9, -9, 18, 11);
+    for (let k = -6; k <= 6; k += 3) { X.beginPath(); X.moveTo(k, -9); X.lineTo(k, 2); X.stroke(); }
+    X.restore();
+    X.fillStyle = '#f2c618'; X.font = 'bold 6px sans-serif'; X.textAlign = 'center'; X.fillText('SOLO ALCAN', sx, sy - 26);
+}
+
+function drawGate(i, j, t) {
+    const a = iso(i, j + .5), b = iso(i + 1, j + .5);
+    for (let k = 0; k <= 4; k++) {
+        const x = a[0] + (b[0] - a[0]) * k / 4, y = a[1] + (b[1] - a[1]) * k / 4;
+        limb(x, y, x, y - 40, 2.4, '#3a3f46');
+        sph(x, y - 41, 1.8, 1.8, '#c8a040');
+    }
+    limb(a[0], a[1] - 34, b[0], b[1] - 34, 2.4, '#3a3f46');
+    limb(a[0], a[1] - 10, b[0], b[1] - 10, 2.4, '#3a3f46');
+    const m = iso(i + .5, j + .5);
+    sph(m[0], m[1] - 22, 3.2, 3.8, '#c8a040');
 }
