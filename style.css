@@ -16,8 +16,7 @@ body {
 }
 
 canvas {
-    display: block;
-    image-rendering: pixelated
+    display: block
 }
 
 #hud {
@@ -54,7 +53,7 @@ canvas {
 #toast {
     position: absolute;
     left: 50%;
-    top: 14px;
+    bottom: 118px;
     transform: translateX(-50%);
     background: #fff;
     color: #222;
@@ -149,13 +148,26 @@ canvas {
     box-shadow: 0 0 10px #f2b705
 }
 
+.ch img {
+    object-position: 50% 30%
+}
+
 .ch .cd {
     position: absolute;
-    left: 0;
     bottom: 0;
-    width: 100%;
+    width: 50%;
     background: #000b;
-    height: 0
+    height: 0;
+    pointer-events: none
+}
+
+.ch .cd.q {
+    left: 0
+}
+
+.ch .cd.x {
+    right: 0;
+    background: #2a0a3bbb
 }
 
 .overlay {
@@ -163,7 +175,7 @@ canvas {
     inset: 0;
     background: #000c;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     overflow: auto;
     padding: 12px
@@ -180,6 +192,7 @@ canvas {
     padding: 20px 24px;
     max-width: 640px;
     width: 100%;
+    margin: auto;
     line-height: 1.45
 }
 
@@ -218,7 +231,169 @@ canvas {
     opacity: .85
 }
 
+#side kbd {
+    background: #222;
+    color: #f2b705;
+    border-radius: 4px;
+    padding: 0 5px;
+    font-family: inherit
+}
+
+.btn.ghost {
+    background: transparent;
+    color: #f2b705;
+    border: 2px solid #f2b705
+}
+
+.logo {
+    text-align: center;
+    font: 900 56px Impact, "Arial Black", sans-serif !important;
+    letter-spacing: 2px;
+    color: #f2b705 !important;
+    -webkit-text-stroke: 2px #1d1a22;
+    text-shadow: 4px 4px 0 #b2503a;
+    animation: wob 2.4s ease-in-out infinite
+}
+
+.logo small {
+    display: block;
+    font-size: 20px;
+    -webkit-text-stroke: 1px #1d1a22;
+    text-shadow: 2px 2px 0 #b2503a;
+    color: #fff
+}
+
+@keyframes wob {
+    50% {
+        transform: rotate(-1.5deg) scale(1.03)
+    }
+}
+
+.boxes {
+    display: flex;
+    justify-content: center;
+    height: 150px;
+    margin: 4px 0 12px
+}
+
+.boxes img {
+    height: 140px;
+    margin: 0 -10px;
+    border-radius: 6px;
+    box-shadow: 0 6px 14px #000a;
+    transform: rotate(calc(var(--i) * 6deg)) translateY(calc(var(--i) * var(--i) * 4px));
+    animation: flt 2.6s ease-in-out infinite;
+    animation-delay: calc(var(--i) * .3s);
+    transition: transform .2s
+}
+
+.boxes img:hover {
+    transform: scale(1.25) translateY(-10px);
+    z-index: 2
+}
+
+@keyframes flt {
+    50% {
+        translate: 0 -8px
+    }
+}
+
+.cut {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 12px;
+    animation: slin .35s cubic-bezier(.3, 1.6, .5, 1)
+}
+
+.cut.alt {
+    flex-direction: row-reverse
+}
+
+@keyframes slin {
+    from {
+        transform: translateX(-40px) rotate(-3deg);
+        opacity: 0
+    }
+}
+
+.pimg img {
+    width: 150px;
+    height: 190px;
+    object-fit: cover;
+    object-position: 50% 25%;
+    border: 4px solid #fff;
+    border-radius: 6px;
+    box-shadow: 0 6px 16px #000a;
+    transform: rotate(-3deg);
+    background: #333
+}
+
+.cut.alt .pimg img {
+    transform: rotate(3deg)
+}
+
+.pbub {
+    position: relative;
+    flex: 1;
+    background: #fffdf3;
+    color: #1d1a22;
+    border: 3px solid #1d1a22;
+    border-radius: 16px;
+    padding: 10px 14px;
+    min-height: 90px;
+    font-family: "Comic Sans MS", "Trebuchet MS", sans-serif
+}
+
+.pbub b {
+    color: #b2503a
+}
+
+.pbub p {
+    margin: 6px 0 0;
+    font-size: 17px
+}
+
+.dots {
+    text-align: center;
+    margin-bottom: 6px
+}
+
+.dots i {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #555;
+    margin: 0 3px
+}
+
+.dots i.on {
+    background: #f2b705
+}
+
+.objl {
+    padding-left: 20px
+}
+
 @media (max-width:700px) {
+    .pimg img {
+        width: 96px;
+        height: 124px
+    }
+
+    .logo {
+        font-size: 40px !important
+    }
+
+    .boxes img {
+        height: 96px
+    }
+
+    .boxes {
+        height: 110px
+    }
+
     .ch {
         width: 58px;
         height: 78px
@@ -240,4 +415,140 @@ canvas {
         padding: 7px 8px;
         font-size: 12px
     }
+}
+
+/* ---------- Stile packaging action figure ---------- */
+body {
+    background: #141218
+}
+
+.overlay {
+    background: radial-gradient(ellipse at center, rgba(40, 30, 20, .75), rgba(8, 6, 10, .92));
+    backdrop-filter: blur(3px)
+}
+
+.card {
+    background:
+        linear-gradient(160deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, 0) 40%),
+        linear-gradient(#26324d, #172036);
+    border: 7px solid #c9a36a;
+    border-radius: 10px;
+    box-shadow: 0 0 0 2px #6b4a2c, 0 18px 40px rgba(0, 0, 0, .7), inset 0 0 0 2px rgba(255, 255, 255, .12)
+}
+
+.card h1,
+.card h2 {
+    color: #f2c94c;
+    font-family: Georgia, "Times New Roman", serif;
+    text-shadow: 0 2px 0 #5a3a10
+}
+
+.logo {
+    font-family: "Arial Black", Impact, sans-serif !important;
+    color: #f2c94c !important;
+    -webkit-text-stroke: 1.5px #3a2408;
+    text-shadow: 0 3px 0 #8a5a14, 0 8px 18px rgba(0, 0, 0, .6);
+    animation: none
+}
+
+.logo small {
+    font-family: Georgia, serif;
+    font-style: italic;
+    color: #fff;
+    -webkit-text-stroke: 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, .7)
+}
+
+.warn {
+    background: #f7f1e3;
+    color: #5a1a1a;
+    border-left: 5px solid #c62b22;
+    box-shadow: 2px 3px 6px rgba(0, 0, 0, .4)
+}
+
+#side button,
+.btn {
+    background: linear-gradient(#ffe68a, #e9b22a 55%, #c98f10);
+    color: #3a2408;
+    border: 1px solid #8a6510;
+    border-radius: 7px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8), inset 0 -2px 0 rgba(0, 0, 0, .15), 0 3px 7px rgba(0, 0, 0, .45);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, .5)
+}
+
+#side button:active,
+.btn:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 1px 3px rgba(0, 0, 0, .45)
+}
+
+.btn.ghost {
+    background: linear-gradient(#f7f1e3, #d9cdb0);
+    color: #3a2408;
+    border: 1px solid #8a7a5a
+}
+
+#side kbd {
+    background: #3a2408;
+    color: #ffe68a
+}
+
+#top {
+    background:
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, .03) 0 2px, transparent 2px 5px),
+        linear-gradient(#d9b67a, #b89052);
+    color: #2a1a08;
+    border: 2px solid #6b4a2c;
+    border-radius: 4px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, .5);
+    font-family: Georgia, serif
+}
+
+#toast {
+    background: #f7f1e3;
+    color: #2b2420;
+    border-radius: 2px;
+    font-family: "Marker Felt", "Chalkboard SE", "Comic Sans MS", sans-serif;
+    box-shadow: 3px 4px 8px rgba(0, 0, 0, .45);
+    transform: translateX(-50%) rotate(-1deg)
+}
+
+.ch {
+    background: linear-gradient(#2a3a6a, #1a2446);
+    border: 3px solid #c9a36a;
+    border-radius: 6px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, .55)
+}
+
+.ch::after {
+    content: "";
+    position: absolute;
+    inset: 3px 3px 22px;
+    border-radius: 8px 8px 4px 4px;
+    background: linear-gradient(120deg, rgba(255, 255, 255, .35), rgba(255, 255, 255, 0) 35%, rgba(255, 255, 255, 0) 70%, rgba(255, 255, 255, .15));
+    pointer-events: none
+}
+
+.ch span {
+    color: #f2c94c;
+    font-family: Georgia, serif
+}
+
+.ch.sel {
+    border-color: #ffe68a;
+    box-shadow: 0 0 0 2px #3a2408, 0 0 16px #ffd34a
+}
+
+.pbub {
+    background: #f7f1e3;
+    border: 1px solid #b9a888;
+    border-radius: 3px;
+    box-shadow: 4px 5px 10px rgba(0, 0, 0, .45);
+    font-family: "Marker Felt", "Chalkboard SE", "Comic Sans MS", sans-serif
+}
+
+.pimg img {
+    border: 6px solid #fbf8f0;
+    border-bottom-width: 20px;
+    border-radius: 2px
 }

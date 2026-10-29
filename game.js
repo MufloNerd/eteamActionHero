@@ -1,163 +1,16 @@
 'use strict';
-// E-TEAM: Operazione Sobrietà Zero — tattico/stealth isometrico, Canvas puro.
+// E-TEAM: Operazione Sobrietà Zero. Tattico/stealth isometrico in stile action figure, Canvas puro.
 
 const $ = id => document.getElementById(id);
 const cv = $('c'), ctx = cv.getContext('2d');
+X = ctx;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const iso = (x, y) => [(x - y) * 32, (x + y) * 16];
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const STOP = 12; // fps delle pose: effetto stop-motion
+const BLIND = ['sleep', 'drink', 'laugh', 'stunned', 'flee'];
 
-// Verifica l'abbinamento foto -> personaggio modificando solo il campo img.
-const CHARS = [
-    {
-        id: 'estice', name: 'Estice', role: 'Il Demolitore', img: 'assets/1000081042.jpg', abil: 'Dinamite', range: 6, cd: 12, target: true,
-        desc: 'Lancia una dinamite: spacca le barricate ma fa un gran fracasso.'
-    },
-    {
-        id: 'alcan', name: 'Alcan', role: "L'Infiltrato", img: 'assets/1000081046.jpg', abil: 'Whisky 12', range: 7, cd: 10, target: true,
-        desc: 'Esca di whisky: le guardie corrono a bere. Il badge apre le porte riservate.'
-    },
-    {
-        id: 'muglo', name: 'Muglo', role: 'Maestro del Grill', img: 'assets/1000081050.jpg', abil: 'Griglia fumogena', range: 6, cd: 14, target: true,
-        desc: 'Griglia con fumo profumato: blocca la vista e attira i curiosi.'
-    },
-    {
-        id: 'unicorn', name: 'Unicorn', role: 'Mastro Birraio', img: 'assets/1000081064.jpg', abil: 'Pozione al luppolo', range: 5, cd: 12, target: true,
-        desc: 'Lancia una pozione: le guardie vicine crollano addormentate.'
-    },
-    {
-        id: 'proboscis', name: 'Proboscis', role: 'Il Negoziatore', img: 'assets/1000081068.jpg', abil: 'Completo da agente', range: 0, cd: 15, target: false,
-        desc: 'Si cambia in giacca e cravatta: le guardie lo ignorano da lontano e passa le porte riservate.'
-    },
-];
-
-const MISSIONS = [
-    {
-        name: 'Missione 1 — Salva il Ludwig Pub',
-        intro: "Roseto degli Abruzzi. Il Ministro Sobrio Astemi ha fatto sigillare il Ludwig Pub: niente Live Music, spillatrici sequestrate. È il primo pub da salvare! Raggiungi la spina della birra e riaccendila, evitando gli Ispettori Acqua.",
-        hint: "Due ingressi: la barricata (Estice) o la porta riservata (Alcan col badge). Dentro c'è un ispettore: distrailo!",
-        theme: { bg: '#bcd9ee', a: '#8b8d92', b: '#85878d', c: '#8b8d92', p: '#a8743f', wT: '#3c4552', wL: '#b2503a', wR: '#8d3d2c', timber: true },
-        map: [
-            '##########################',
-            '#,,,,,,#########,,,,,,,,,#',
-            '#,,,,,,#ppppppp#,,,,,,,,,#',
-            '#,,TT,,#pppOppp#,,,TT,,,,#',
-            '#,,TT,,#ppppppp#,,,TT,,,,#',
-            '#,,,,,,###BK####,,,,,,,,,#',
-            '#,,,,,,,,,,,,,,,,,,,,,,,,#',
-            '#,,,,,CC,,,,,,,,,,CC,,,,,#',
-            '#,,TT,,,,,,,,,,,,,,,,TT,,#',
-            '#,,,,,,,,,,,,,,,,,,,,,,,,#',
-            '#,,,,,,,,,CCC,,,,,,,,,,,,#',
-            '#,,,,,,,,,,,,,,,,,,,,,,,,#',
-            '#,TT,,,,,,,,,,,,,,,,,,TT,#',
-            '#,,,,,,,,,,,,,,,,,,,,,,,,#',
-            '#,,,,,CC,,,,,,,,,,,CC,,,,#',
-            '#,,,,,,,,,,,,,,,,,,,,,,,,#',
-            '#,,,,,,,,,,,,,,,,,,,,,,,,#',
-            '##########################',
-        ],
-        starts: [[9, 16], [11, 16], [13, 16], [15, 16], [17, 16]],
-        guards: [
-            { p: [[4, 9], [21, 9]] },
-            { p: [[13, 7], [13, 12]] },
-            { p: [[3, 13], [22, 13]] },
-            { p: [[13, 3]], base: Math.PI, sweep: 1.1 },
-        ],
-        objectives: [{ x: 11, y: 3, text: 'Riaccendi la spina del Ludwig', msg: 'Pssshhh! La schiuma torna a scorrere: il Ludwig è salvo!' }],
-        signs: [{ x: 6.5, y: 5.5, title: 'Ludwig', sub: 'Pub', tag: 'LIVE MUSIC' }],
-    },
-    {
-        name: 'Missione 2 — La Distilleria Clandestina',
-        intro: "Il Ministero ha sigillato la distilleria: le botti di grappa non devono arrivare a nessuno. Due botti da sbloccare, due stanze, ingressi diversi. Il rumore attira gli ispettori: pensa prima di far saltare tutto.",
-        hint: "Sinistra: porta riservata. Destra: barricata. Muglo e il suo fumo coprono i movimenti.",
-        theme: { bg: '#2b2a33', a: '#6e6a5e', b: '#686457', c: '#6e6a5e', p: '#8a7a55', wT: '#4a2c2a', wL: '#8e4a3a', wR: '#6f382c', timber: false },
-        map: [],
-        starts: [[3, 16], [5, 16], [7, 16], [9, 16], [11, 16]],
-        guards: [
-            { p: [[3, 9], [26, 9]] },
-            { p: [[5, 13], [27, 13]] },
-            { p: [[14, 7], [14, 15]] },
-            { p: [[14, 3]], base: Math.PI, sweep: 1.1 },
-            { p: [[19, 3], [25, 3]] },
-        ],
-        objectives: [
-            { x: 12, y: 2, text: 'Spezza i sigilli della botte A', msg: 'Crack! La botte A rilascia un profumo divino.' },
-            { x: 24, y: 2, text: 'Spezza i sigilli della botte B', msg: 'Crack! Anche la botte B è libera!' },
-        ],
-        signs: [],
-    },
-    {
-        name: 'Missione 3 — Il Ministero della Sobrietà',
-        intro: "Il covo del Ministro Sobrio Astemi. Il suo decreto è nell'ufficio blindato in fondo. Finché il Ministro è sveglio nessuno può toccarlo: serve una pozione ben piazzata e qualcuno col badge.",
-        hint: "Unicorn lancia la pozione dal corridoio (portata 5), Alcan entra con il badge e firma.",
-        theme: { bg: '#20242c', a: '#3f4650', b: '#3a414a', c: '#c9c9c2', p: '#6d1f2b', wT: '#e6e0cc', wL: '#bdb7a2', wR: '#a39d89', timber: false },
-        map: [],
-        starts: [[10, 16], [12, 16], [14, 16], [16, 16], [18, 16]],
-        guards: [],
-        objectives: [{ x: 16, y: 2, needAsleep: 'boss', lock: 'Il Ministro è sveglio e ti fissa: "Solo acqua, grazie!"', text: 'Fai firmare il decreto "Aperitivo libero"', msg: 'Firmato! L\'Italia torna a brindare. Salute!' }],
-        signs: [],
-    },
-];
-
-// Missioni 2 e 3 composte da funzioni per evitare errori di conteggio.
-(function buildMaps() {
-    const rep = (c, n) => c.repeat(n);
-    const m2 = MISSIONS[1];
-    m2.map = [
-        rep('#', 30),
-        '#,,,,,,,#ppppppp##pppppppp#,,#',
-        '#,,,,,,,#pppOppp##ppppppOp#,,#',
-        '#,,TT,,,#ppppppp##pppppppp#,,#',
-        '#,,TT,,,#ppppppp##pppppppp#,,#',
-        '#,,,,,,,#' + '###K###' + '##' + '###B####' + '#,,#',
-        '#' + rep(',', 28) + '#',
-        '#,,,,,CC' + rep(',', 14) + 'CC,,,,,#',
-        '#,TT' + rep(',', 22) + 'TT,#',
-        '#' + rep(',', 28) + '#',
-        '#' + rep(',', 10) + 'CCC,,,,,CCC' + rep(',', 7) + '#',
-        '#' + rep(',', 28) + '#',
-        '#,,TT' + rep(',', 20) + 'TT,,#',
-        '#' + rep(',', 28) + '#',
-        '#,,,,,CC' + rep(',', 14) + 'CC,,,,,#',
-        '#' + rep(',', 28) + '#',
-        '#' + rep(',', 28) + '#',
-        rep('#', 30),
-    ].map(r => r.slice(0, 30).padEnd(30, '#'));
-
-    const m3 = MISSIONS[2];
-    const boss = rep('#', 8) + rep('p', 16) + rep('#', 8);
-    m3.map = [
-        rep('#', 32),
-        boss,
-        rep('#', 8) + rep('p', 8) + 'O' + rep('p', 7) + rep('#', 8),
-        boss,
-        boss,
-        rep('#', 15) + 'KK' + rep('#', 15),
-        '#' + rep('.', 30) + '#',
-        '#...CC' + rep('.', 11) + 'CC' + rep('.', 12) + '#',
-        '#' + rep('.', 30) + '#',
-        '#...CC' + rep('.', 11) + 'CC' + rep('.', 12) + '#',
-        rep('#', 5) + 'B' + rep('#', 19) + 'K' + rep('#', 6),
-        '#' + rep(',', 30) + '#',
-        '#,,TT' + rep(',', 22) + 'TT,,#',
-        '#' + rep(',', 30) + '#',
-        '#' + rep(',', 6) + 'CC' + rep(',', 12) + 'CC' + rep(',', 8) + '#',
-        '#' + rep(',', 30) + '#',
-        '#' + rep(',', 30) + '#',
-        rep('#', 32),
-    ];
-    m3.guards = [
-        { p: [[6, 12], [25, 12]] },
-        { p: [[28, 15], [3, 15]] },
-        { p: [[15, 11], [15, 16]] },
-        { p: [[3, 7], [28, 7]] },
-        { p: [[28, 9], [3, 9]] },
-        { p: [[13, 2]], base: 0, sweep: 1.0, boss: true, label: 'Ministro Sobrio Astemi' },
-    ];
-})();
-
-// ---------- stato ----------
-let G = null, mouse = [0, 0], cw = 0, ch = 0, dpr = 1, zoom = 1;
+let G = null, mouse = [0, 0], cw = 0, ch = 0, dpr = 1, zoom = 1, zoomMul = 1;
 const keys = {};
 
 function resize() {
@@ -165,40 +18,55 @@ function resize() {
     cw = innerWidth; ch = innerHeight;
     cv.width = cw * dpr; cv.height = ch * dpr;
     cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
-    zoom = clamp(cw / 1100, 0.55, 1.15);
+    zoom = clamp(Math.min(cw / 820, ch / 560), 0.6, 1.5) * zoomMul;
 }
 addEventListener('resize', resize);
 resize();
 
+const PORT = {};
+function portraitOf(kind) {
+    if (kind === 'boss' && SPR['boss-astemi']) return spritePath('boss-astemi');
+    if (kind === 'guard' && SPR['guard-alert']) return spritePath('guard-alert');
+    return PORT[kind] || (PORT[kind] = makePortrait(kind === 'boss' ? BOSS_LOOK : GUARD_LOOK, kind === 'boss' ? 'angry' : 'shock'));
+}
+
+// ---------- missione ----------
 function loadMission(i) {
     const m = MISSIONS[i];
     const map = m.map.map(r => r.split(''));
-    const guards = m.guards.map(g => ({
-        kind: 'guard', path: g.p, boss: !!g.boss, label: g.label || 'Ispettore Acqua',
+    const guards = m.guards.map((g, k) => ({
+        kind: 'guard', path: g.p, boss: !!g.boss, label: g.label || 'Ispettore Acqua', look: g.boss ? BOSS_LOOK : GUARD_LOOK,
         x: g.p[0][0] + .5, y: g.p[0][1] + .5, pi: 0, route: [], mode: 'patrol', timer: 0,
         dir: g.base || 0, base: g.base || 0, sweep: g.sweep || 1,
         speed: g.boss ? 0 : 1.6, fov: g.boss ? 1.5 : 1.25, range: g.boss ? 8.5 : 6.5,
-        meter: 0, sayT: 0, sayTxt: '', after: null,
+        meter: 0, after: null, say: null, phase: 0, back: false, flip: false, seed: k * 1.7, alerted: false,
+        chatT: rnd(8, 25), hitT: 0, fxT: 0, susp: false, spot: null, repath: 0,
     }));
     G = {
         mi: i, m, map, W: map[0].length, H: map.length, t: 0, state: 'play', sel: 0, follow: false,
-        targeting: false, free: false, cam: { x: 0, y: 0 }, guards, baits: [], dyn: [], fx: [],
+        targeting: -1, free: false, cam: { x: 0, y: 0 }, guards, baits: [], dyn: [], proj: [], parts: [], later: [],
+        shake: 0, marker: null, ambT: 0,
         chars: CHARS.map((c, k) => ({
             ...c, kind: 'char', x: m.starts[k][0] + .5, y: m.starts[k][1] + .5,
-            route: [], cdT: 0, disguise: 0, want: null
+            route: [], cd: [0, 0], disguise: 0, want: null, say: null, phase: 0, back: true, flip: false,
+            actT: 0, actDur: 0, actKind: null, actProp: undefined, fireT: 0, hitT: 0, seed: k * 2.3, quipT: rnd(8, 20) + k * 4,
         })),
         objs: m.objectives.map(o => ({
             ...o, done: false,
-            needAsleep: o.needAsleep === 'boss' ? guards.findIndex(g => g.boss) : null
+            needAsleep: o.needAsleep === 'boss' ? guards.findIndex(g => g.boss) : null,
         })),
     };
+    const xs = m.starts.map(p => p[0]), ys = m.starts.map(p => p[1]);
+    G.safe = { x0: Math.max(1, Math.min(...xs) - 1), x1: Math.min(G.W - 1, Math.max(...xs) + 2), y0: Math.max(1, Math.min(...ys) - 1), y1: Math.min(G.H - 1, Math.max(...ys) + 2) };
     const c = G.chars[0];
     [G.cam.x, G.cam.y] = iso(c.x, c.y);
 }
 
+const inSafe = e => e.x >= G.safe.x0 && e.x < G.safe.x1 && e.y >= G.safe.y0 && e.y < G.safe.y1;
+
 // ---------- mappa / percorsi ----------
 function tileAt(x, y) {
-    if (x < 0 || y < 0 || x >= G.W || y >= G.H) return '#';
+    if (!G || x < 0 || y < 0 || x >= G.W || y >= G.H) return '#';
     return G.map[y][x];
 }
 const canDoor = c => c.kind === 'guard' || c.id === 'alcan' || (c.id === 'proboscis' && c.disguise > 0);
@@ -208,9 +76,7 @@ function walk(x, y, who) {
     return !'#TBOC'.includes(t);
 }
 const opaqueTile = t => '#TBK'.includes(t);
-function inSmoke(x, y) {
-    return G.baits.some(b => b.kind === 'smoke' && Math.hypot(b.x - x, b.y - y) < b.r);
-}
+function inSmoke(x, y) { return G.baits.some(b => b.kind === 'smoke' && Math.hypot(b.x - x, b.y - y) < b.r); }
 function opaque(x, y) { return opaqueTile(tileAt(Math.floor(x), Math.floor(y))) || inSmoke(x, y); }
 function los(x0, y0, x1, y1) {
     const d = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(d / .2);
@@ -253,116 +119,291 @@ function bfs(sx, sy, tx, ty, who) {
     return path.reverse();
 }
 
+function face(e, dx, dy) {
+    const sx = dx - dy, sy = dx + dy;
+    if (Math.abs(sx) > .01) e.flip = sx < 0;
+    if (Math.abs(sy) > .01) e.back = sy < 0;
+}
+
 function follow(e, speed, dt) {
     if (!e.route.length) return false;
     const [tx, ty] = e.route[0], dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy), s = speed * dt;
+    if (e.kind === 'char') face(e, dx, dy);
     if (d <= s) { e.x = tx; e.y = ty; e.route.shift(); } else { e.x += dx / d * s; e.y += dy / d * s; }
+    e.phase += dt * speed * 3.2;
     return true;
+}
+
+// ---------- effetti ----------
+function part(o) {
+    if (G.parts.length > 700) return;
+    G.parts.push(Object.assign({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, g: 0, life: 0, max: 1, size: 4, grow: 0, col: '#fff', kind: 'puff', rot: 0, vr: 0, seed: Math.random() * 9 }, o));
+}
+function burst(n, x, y, f) { for (let k = 0; k < n; k++) part(Object.assign({ x, y }, f(k))); }
+function pop(x, y, txt, col = '#ffd23f', size = 34) { part({ kind: 'pop', x, y, z: 80, txt, col, size, max: 1.4, rot: rnd(-.15, .15), vz: 14 }); }
+function shake(v) { G.shake = Math.max(G.shake, v); }
+function later(t, f) { G.later.push({ t, f }); }
+
+function smokeAt(x, y, r, col, face) {
+    const a = rnd(0, 7), d = Math.sqrt(Math.random()) * r;
+    part({ kind: 'puff', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, z: rnd(0, 20), vz: rnd(8, 22), size: rnd(10, 18), grow: 1, max: rnd(1.6, 2.6), col, alpha: .55, face });
+}
+function explosionFx(x, y) {
+    burst(28, x, y, () => ({ kind: 'fire', z: 10, vx: rnd(-2.5, 2.5), vy: rnd(-2.5, 2.5), vz: rnd(30, 140), size: rnd(8, 16), max: rnd(.4, .8) }));
+    burst(14, x, y, () => ({ kind: 'puff', z: 10, vx: rnd(-1, 1), vy: rnd(-1, 1), vz: rnd(20, 60), size: rnd(14, 22), grow: 1.2, max: rnd(1.4, 2.2), col: '#6a6a6a' }));
+    burst(18, x, y, () => ({ kind: 'debris', z: 10, vx: rnd(-3, 3), vy: rnd(-3, 3), vz: rnd(120, 260), g: 520, size: rnd(2, 4), max: 1.6, col: pick(['#8a5a2b', '#a8763f', '#555']), rot: rnd(0, 6), vr: rnd(-12, 12) }));
+    burst(16, x, y, () => ({ kind: 'spark', z: 20, vx: rnd(-4, 4), vy: rnd(-4, 4), vz: rnd(80, 200), g: 300, size: 3, max: .7, col: '#ffe14a' }));
 }
 
 // ---------- messaggi ----------
 let toastTimer = 0;
-function say(txt, ms = 2800) {
+function toast(txt, ms = 2800) {
     const t = $('toast');
     t.textContent = txt; t.classList.add('on');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.remove('on'), ms);
 }
-function gsay(g, txt) { g.sayTxt = txt; g.sayT = 2; }
+function talk(e, txt, dur = 2.6, shout = false) { e.say = { txt, t: 0, dur, shout }; sfx('talk'); }
 
 // ---------- abilità ----------
-function startAbility() {
+function startAbility(k) {
     if (!G || G.state !== 'play') return;
-    const c = G.chars[G.sel];
-    if (c.cdT > 0) { say(c.abil + ' in ricarica (' + Math.ceil(c.cdT) + 's)'); return; }
-    if (!c.target) { castAt(c); return; }
-    G.targeting = !G.targeting;
-    if (G.targeting) say(c.abil + ': tocca/clicca dove usarla (Esc per annullare)');
+    const c = G.chars[G.sel], ab = c.ab[k];
+    if (c.cd[k] > 0) { toast(ab.name + ' in ricarica (' + Math.ceil(c.cd[k]) + 's)'); return; }
+    if (!ab.target) { castAt(c, k); return; }
+    G.targeting = G.targeting === k ? -1 : k;
+    if (G.targeting >= 0) toast(ab.icon + ' ' + ab.name + ': tocca/clicca dove usarla (Esc per annullare)');
     refreshHud();
 }
 
-function castAt(c, wx, wy) {
-    if (c.target) {
+function act(c, kind, dur = .6, prop) { c.actKind = kind; c.actT = 0; c.actDur = dur; c.actProp = prop; }
+
+function throwProj(c, wx, wy, kind, onLand) {
+    const d = Math.hypot(wx - c.x, wy - c.y);
+    G.proj.push({ x0: c.x, y0: c.y, x1: wx, y1: wy, x: c.x, y: c.y, z: 30, t: 0, dur: .35 + d * .08, h: 40 + d * 10, kind, onLand, delay: .18 });
+    later(.15, () => sfx('throw'));
+}
+
+function castAt(c, k, wx, wy) {
+    const ab = c.ab[k];
+    if (ab.target) {
         const d = Math.hypot(wx - c.x, wy - c.y);
-        if (d > c.range) { wx = c.x + (wx - c.x) / d * c.range; wy = c.y + (wy - c.y) / d * c.range; }
+        if (d > ab.range) { wx = c.x + (wx - c.x) / d * ab.range; wy = c.y + (wy - c.y) / d * ab.range; }
+        face(c, wx - c.x, wy - c.y);
     }
-    G.targeting = false;
-    switch (c.id) {
-        case 'estice': G.dyn.push({ x: wx, y: wy, t: 2.5 }); say('Dinamite innescata! Allontanatevi!'); break;
-        case 'alcan':
-            G.baits.push({ kind: 'whisky', x: wx, y: wy, t: 10, r: 0 });
-            lure(wx, wy, 9, 'drink', 6, 'Glu glu... Macallan 12!');
-            say('Bottiglia piazzata: le guardie arrivano.'); break;
-        case 'muglo':
-            G.baits.push({ kind: 'smoke', x: wx, y: wy, t: 10, r: 2.4 });
-            lure(wx, wy, 8, 'look', 4, 'Che profumo di brace!');
-            say('Fumo e profumo di arrosto!'); break;
-        case 'unicorn': {
-            let n = 0;
-            G.guards.forEach(g => {
-                if (Math.hypot(g.x - wx, g.y - wy) < 1.9 && g.mode !== 'sleep') { sleepGuard(g, g.boss ? 16 : 14, 'Zzz... luppolo...'); n++; }
-            });
-            G.fx.push({ x: wx, y: wy, t: 0, max: .8, r: 1.9, col: '240,190,40' });
-            say(n ? 'Pozione al luppolo: nanna!' : 'Pozione sprecata... nessuno nel raggio.');
+    G.targeting = -1;
+    let ok = true;
+    switch (c.id + k) {
+        case 'estice0':
+            act(c, 'throw', .6, 'dynamite');
+            throwProj(c, wx, wy, 'dynamite', () => G.dyn.push({ x: wx, y: wy, t: 2.2 }));
             break;
-        }
-        case 'proboscis': c.disguise = 10; say('Completo da agente immobiliare: "Ho un affare per lei!"'); break;
+        case 'estice1': esticeGas(c); break;
+        case 'alcan0':
+            act(c, 'throw', .6, 'whisky');
+            throwProj(c, wx, wy, 'whisky', () => {
+                sfx('glass');
+                G.baits.push({ kind: 'whisky', x: wx, y: wy, t: 10, r: 0 });
+                burst(8, wx, wy, () => ({ kind: 'spark', z: 6, vx: rnd(-1.5, 1.5), vy: rnd(-1.5, 1.5), vz: rnd(40, 90), g: 260, size: 2.5, max: .5, col: '#ffd27a' }));
+                lure(wx, wy, 9, 'drink', 6, 'Glu glu... Macallan 12!');
+            });
+            break;
+        case 'alcan1': ok = alcanPunch(c); break;
+        case 'muglo0':
+            act(c, 'throw', .6, 'tongs');
+            throwProj(c, wx, wy, 'grill', () => {
+                sfx('sizzle');
+                G.baits.push({ kind: 'smoke', x: wx, y: wy, t: 10, r: 2.4, fx: 0 });
+                lure(wx, wy, 8, 'look', 4, 'Che profumo di brace!');
+                pop(wx, wy, 'SFRIIII!', '#ffb02a', 26);
+            });
+            break;
+        case 'muglo1':
+            act(c, 'throw', .7, 'ember'); c.fireT = 1.4; sfx('sizzle');
+            throwProj(c, wx, wy, 'ember', () => emberLand(wx, wy));
+            break;
+        case 'unicorn0':
+            act(c, 'throw', .6, 'potion');
+            throwProj(c, wx, wy, 'potion', () => potionLand(wx, wy));
+            break;
+        case 'unicorn1': unicornJoke(c); break;
+        case 'proboscis0':
+            c.disguise = 10; sfx('poof'); act(c, 'up', .5);
+            burst(14, c.x, c.y, () => ({ kind: 'puff', z: rnd(10, 50), vx: rnd(-1, 1), vy: rnd(-1, 1), vz: rnd(10, 30), size: rnd(10, 16), grow: .8, max: .9, col: '#f4f4f4' }));
+            pop(c.x, c.y, 'TA-DAN!', '#7ec0ee', 28);
+            break;
+        case 'proboscis1': proboscisWow(c); break;
     }
-    c.cdT = c.cd;
+    if (!ok) return;
+    const line = pick(c.castLines[k] || []);
+    if (line && !(c.say && c.say.t < .5)) talk(c, line, 2.2, true);
+    c.cd[k] = ab.cd;
     refreshHud();
 }
 
-function sleepGuard(g, t, txt) { g.mode = 'sleep'; g.timer = t; g.route = []; g.meter = 0; gsay(g, txt); }
+function awake(g) { return !BLIND.includes(g.mode); }
+function inReach(c, r, needLos = true) {
+    return G.guards.filter(g => awake(g) && Math.hypot(g.x - c.x, g.y - c.y) < r && (!needLos || los(c.x, c.y, g.x, g.y)));
+}
+
+function esticeGas(c) {
+    act(c, 'adjust', 1.1); sfx('fart'); shake(4);
+    pop(c.x, c.y, 'PRRRRT!', '#8fdc4a', 40);
+    G.baits.push({ kind: 'gas', x: c.x, y: c.y, t: 6, r: 2.3, fx: 0 });
+    for (let k = 0; k < 22; k++) smokeAt(c.x, c.y, 1.6, '#9ad84a', k % 6 ? null : '☠');
+    lure(c.x, c.y, 6.5, 'look', 3, 'Che puzza... da dove viene?');
+}
+
+function alcanPunch(c) {
+    const g = inReach(c, c.ab[1].range).sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))[0];
+    if (!g) { toast('Nessuno a portata... per sua fortuna!'); talk(c, 'Dove siete, codardi?!', 1.8, true); return false; }
+    const d = Math.hypot(g.x - c.x, g.y - c.y);
+    if (d > .7) { c.x = g.x - (g.x - c.x) / d * .7; c.y = g.y - (g.y - c.y) / d * .7; }
+    c.route = []; face(c, g.x - c.x, g.y - c.y);
+    act(c, 'punch', .5); sfx('punch'); shake(6);
+    pop(g.x, g.y, 'POW!', '#ff4a3a', 40);
+    burst(8, g.x, g.y, () => ({ kind: 'star', z: rnd(40, 60), vx: rnd(-2, 2), vy: rnd(-2, 2), vz: rnd(40, 100), g: 200, size: rnd(5, 8), max: .9, rot: rnd(0, 6), vr: rnd(-6, 6) }));
+    g.hitT = .4;
+    sleepGuard(g, g.boss ? 4 : 7, pick(GUARD_LINES.punch));
+    lure(c.x, c.y, 4, 'look', 3, 'Cos\'è stato?!');
+    return true;
+}
+
+function emberLand(x, y) {
+    sfx('sizzle'); pop(x, y, 'FSSSH!', '#ff7a1a', 32);
+    burst(20, x, y, () => ({ kind: 'fire', z: 4, vx: rnd(-1.5, 1.5), vy: rnd(-1.5, 1.5), vz: rnd(30, 90), size: rnd(6, 12), max: rnd(.5, 1) }));
+    G.guards.forEach(g => {
+        if (!awake(g) || Math.hypot(g.x - x, g.y - y) > 2.4) return;
+        if (g.boss) { talk(g, 'Brace?! Che maleducazione!', 2.4, true); return; }
+        flee(g, x, y);
+    });
+}
+
+function flee(g, sx, sy) {
+    const dx = g.x - sx, dy = g.y - sy, d = Math.hypot(dx, dy) || 1;
+    let route = null;
+    for (let r = 6; r >= 2 && !route; r--) {
+        const tx = Math.floor(g.x + dx / d * r), ty = Math.floor(g.y + dy / d * r);
+        if (walk(tx, ty, g)) route = bfs(Math.floor(g.x), Math.floor(g.y), tx, ty, g);
+    }
+    g.mode = 'flee'; g.timer = 5; g.route = route || []; g.meter = 0;
+    talk(g, pick(GUARD_LINES.flee), 2, true);
+}
+
+function potionLand(x, y) {
+    sfx('glass'); sfx('potion'); pop(x, y, 'SLURP!', '#ffc928', 32);
+    burst(22, x, y, () => ({ kind: 'bubble', z: rnd(0, 20), vx: rnd(-1.2, 1.2), vy: rnd(-1.2, 1.2), vz: rnd(20, 60), size: rnd(3, 7), max: rnd(.8, 1.5), col: 'rgba(255,200,40,.6)' }));
+    let n = 0;
+    G.guards.forEach(g => {
+        if (Math.hypot(g.x - x, g.y - y) < 1.9 && g.mode !== 'sleep') { sleepGuard(g, g.boss ? 16 : 14, pick(GUARD_LINES.sleep)); n++; }
+    });
+    toast(n ? 'Pozione al luppolo: nanna!' : 'Pozione sprecata... nessuno nel raggio.');
+}
+
+function unicornJoke(c) {
+    act(c, 'up', 1.4);
+    talk(c, pick(c.jokes), 3.2, true);
+    later(1.3, () => {
+        const hit = inReach(c, c.ab[1].range);
+        if (!hit.length) { toast('Nessuno ha riso. Silenzio imbarazzante.'); sfx('lose'); return; }
+        sfx('laugh');
+        pop(c.x, c.y, 'AHAHAH!', '#f07ab8', 36);
+        hit.forEach(g => { g.mode = 'laugh'; g.timer = 6; g.route = []; g.meter = 0; talk(g, pick(GUARD_LINES.laugh), 2.4, true); });
+    });
+}
+
+function proboscisWow(c) {
+    act(c, 'adjust', 1.2);
+    later(.5, () => {
+        sfx('whistle');
+        pop(c.x, c.y, 'WOW!', '#ff7ab8', 42);
+        const hit = inReach(c, c.ab[1].range);
+        if (!hit.length) toast('Nessuno ha visto. Peccato.');
+        hit.forEach(g => {
+            g.mode = 'stunned'; g.timer = 7; g.route = []; g.meter = 0;
+            face(g, c.x - g.x, c.y - g.y);
+            g.dir = Math.atan2(c.y - g.y, c.x - g.x);
+            talk(g, pick(GUARD_LINES.stunned), 2.6);
+            part({ kind: 'text', x: g.x, y: g.y, z: 70, vz: 30, txt: '!!', col: '#ff7ab8', size: 18, max: 1.2 });
+        });
+    });
+}
+
+function sleepGuard(g, t, txt) { g.mode = 'sleep'; g.timer = t; g.route = []; g.meter = 0; talk(g, txt); sfx('sleep'); }
 
 function lure(x, y, range, mode, dur, msg) {
     G.guards.forEach(g => {
-        if (g.boss || g.mode === 'sleep' || g.mode === 'drink') return;
+        if (g.boss || !['patrol', 'look', 'goto'].includes(g.mode)) return;
         if (Math.hypot(g.x - x, g.y - y) > range) return;
         const r = bfs(Math.floor(g.x), Math.floor(g.y), Math.floor(x), Math.floor(y), g);
         if (!r) return;
-        g.mode = 'goto'; g.route = r; g.after = { mode, dur, msg }; gsay(g, '?');
+        g.mode = 'goto'; g.route = r; g.after = { mode, dur, msg };
+        talk(g, pick(GUARD_LINES.lure), 1.2);
+        part({ kind: 'text', x: g.x, y: g.y, z: 75, vz: 25, txt: '?', col: '#ffd23f', size: 22, max: 1 });
     });
 }
 
 function explode(d) {
     const R = 2.3;
     for (let j = Math.floor(d.y - R); j <= Math.ceil(d.y + R); j++) for (let i = Math.floor(d.x - R); i <= Math.ceil(d.x + R); i++) {
-        if (tileAt(i, j) === 'B' && Math.hypot(i + .5 - d.x, j + .5 - d.y) <= R + .5) G.map[j][i] = ',';
+        if (tileAt(i, j) === 'B' && Math.hypot(i + .5 - d.x, j + .5 - d.y) <= R + .5) {
+            G.map[j][i] = ',';
+            burst(14, i + .5, j + .5, () => ({ kind: 'debris', z: 20, vx: rnd(-3, 3), vy: rnd(-3, 3), vz: rnd(150, 280), g: 520, size: rnd(3, 5), max: 1.8, col: pick(['#a8763f', '#ffd23f', '#8a5a2b']), rot: rnd(0, 6), vr: rnd(-12, 12) }));
+        }
     }
-    G.guards.forEach(g => { if (!g.boss && Math.hypot(g.x - d.x, g.y - d.y) < 1.8) sleepGuard(g, 5, 'Bzzzz... stordito'); });
-    G.fx.push({ x: d.x, y: d.y, t: 0, max: .6, r: R, col: '255,140,30' });
+    G.guards.forEach(g => { if (!g.boss && Math.hypot(g.x - d.x, g.y - d.y) < 1.8) { g.hitT = .5; sleepGuard(g, 5, 'Bzzzz... stordito'); } });
+    G.chars.forEach(c => { if (Math.hypot(c.x - d.x, c.y - d.y) < 2.5) c.hitT = .5; });
+    explosionFx(d.x, d.y);
+    pop(d.x, d.y, 'BOOM!', '#ff8a1a', 52);
+    shake(16); sfx('boom');
     lure(d.x, d.y, 10, 'look', 5, 'Cos\'è stato?!');
-    say('BOOM!');
 }
 
 // ---------- interazione ----------
 function interact(c) {
     const o = G.objs.find(o => !o.done && Math.hypot(c.x - (o.x + .5), c.y - (o.y + .5)) < 1.9);
-    if (!o) { say('Qui non c\'è niente da fare.'); return false; }
-    if (o.needAsleep != null && G.guards[o.needAsleep].mode !== 'sleep') { say(o.lock); return false; }
+    if (!o) { toast('Qui non c\'è niente da fare.'); return false; }
+    if (o.needChar && c.id !== o.needChar) { toast(o.lock); talk(c, 'Non sono capace... chiamate un esperto!'); return false; }
+    if (o.needAsleep != null && G.guards[o.needAsleep].mode !== 'sleep') { toast(o.lock); talk(G.guards[o.needAsleep], pick(GUARD_LINES.boss), 2.4, true); return false; }
     o.done = true;
-    say(o.msg, 4000);
-    G.fx.push({ x: o.x + .5, y: o.y + .5, t: 0, max: 1, r: 2.5, col: '90,220,120' });
+    toast(o.msg, 4000);
+    sfx('objective');
+    const ox = o.x + .5, oy = o.y + .5;
+    pop(ox, oy, o.pop, '#7fff7a', 40);
+    act(c, 'up', 1.4);
+    talk(c, pick(['EVVAI!', 'Sììì!', 'Siamo leggenda!', 'Missione compiuta!']), 2, true);
+    burst(40, ox, oy, () => ({ kind: 'confetti', z: 60, vx: rnd(-2.5, 2.5), vy: rnd(-2.5, 2.5), vz: rnd(80, 220), g: 240, max: 2.2, col: pick(['#ff4a6a', '#ffd23f', '#4ad0ff', '#7fff7a', '#c07aff']), rot: rnd(0, 6), vr: rnd(-8, 8) }));
+    if (o.kind === 'grill') { c.fireT = 2; burst(24, ox, oy, () => ({ kind: 'fire', z: 24, vx: rnd(-1, 1), vy: rnd(-1, 1), vz: rnd(40, 120), size: rnd(8, 14), max: rnd(.6, 1.1) })); }
     refreshHud();
-    if (G.objs.every(x => x.done)) { G.state = 'won'; setTimeout(showWin, 1500); }
+    if (G.objs.every(x => x.done)) {
+        G.state = 'won';
+        later(1.2, () => sfx('win'));
+        setTimeout(showOutro, 2600);
+    }
     return true;
 }
 
 function select(i) {
-    G.sel = i; G.targeting = false; G.free = false;
+    if (G.sel !== i) {
+        sfx('select', i);
+        if (Math.random() < .5) talk(G.chars[i], pick(['Agli ordini!', 'Eccomi!', 'Dimmi tutto.', 'Pronto!', 'Era ora!']), 1.4);
+    }
+    G.sel = i; G.targeting = -1; G.free = false;
     refreshHud();
 }
 
 function tap(px, py) {
     const c = G.chars[G.sel];
     const [wx, wy] = toWorld(px, py);
-    if (G.targeting) { castAt(c, wx, wy); return; }
-    const [hx, hy] = toWorld(px, py + 22);
+    if (G.targeting >= 0) { castAt(c, G.targeting, wx, wy); return; }
+    const [hx, hy] = toWorld(px, py + 26);
     const hit = G.chars.findIndex(o => Math.hypot(o.x - hx, o.y - hy) < .9);
     if (hit >= 0) { select(hit); return; }
     const ti = Math.floor(wx), tj = Math.floor(wy);
     c.want = tileAt(ti, tj) === 'O' ? true : null;
     c.route = bfs(Math.floor(c.x), Math.floor(c.y), ti, tj, c) || [];
+    G.marker = { x: ti + .5, y: tj + .5, t: 0, ok: c.route.length > 0 };
+    sfx('click');
 }
 
 function toWorld(px, py) {
@@ -370,7 +411,7 @@ function toWorld(px, py) {
     return [(v / 16 + u / 32) / 2, (v / 16 - u / 32) / 2];
 }
 
-// ---------- aggiornamento ----------
+// ---------- guardie ----------
 function turn(g, a, dt) {
     const d = Math.atan2(Math.sin(a - g.dir), Math.cos(a - g.dir));
     g.dir += clamp(d, -4 * dt, 4 * dt);
@@ -383,28 +424,46 @@ function walkGuard(g, sp, dt) {
 }
 
 function updateGuard(g, dt) {
-    g.sayT = Math.max(0, g.sayT - dt);
+    g.hitT = Math.max(0, g.hitT - dt);
+    g.moving = false;
+    g.fxT -= dt;
     if (g.mode === 'sleep') {
         g.timer -= dt;
-        if (g.timer <= 0) { g.mode = 'patrol'; g.route = []; gsay(g, 'Eh? Mi sono appisolato...'); }
+        if (g.fxT <= 0) { g.fxT = .9; part({ kind: 'text', x: g.x, y: g.y, z: 30, vx: .3, vz: 22, txt: 'Z', col: '#fff', size: 14, max: 1.6 }); }
+        if (g.timer <= 0) { g.mode = 'patrol'; g.route = []; talk(g, pick(GUARD_LINES.wake)); }
         return;
     }
-    if (g.mode === 'drink' || g.mode === 'look') {
+    if (['drink', 'look', 'laugh', 'stunned', 'flee'].includes(g.mode)) {
         g.timer -= dt;
         if (g.mode === 'look') g.dir += Math.sin(G.t * 2.5) * dt * 1.2;
+        if (g.mode === 'flee' && g.route.length) { walkGuard(g, 3.4, dt); g.moving = true; }
+        if (g.mode === 'laugh' && g.fxT <= 0) { g.fxT = .35; part({ kind: 'text', x: g.x + rnd(-.3, .3), y: g.y, z: 60, vz: 40, txt: pick(['HA', 'AH', 'HAHA']), col: '#ffd23f', size: 12, max: .8 }); }
+        if (g.mode === 'drink' && g.fxT <= 0) { g.fxT = .5; part({ kind: 'bubble', x: g.x, y: g.y, z: 55, vz: 20, size: 3, max: 1, col: 'rgba(255,200,90,.6)' }); }
+        if (g.mode === 'flee' && g.fxT <= 0) { g.fxT = .25; part({ kind: 'spark', x: g.x, y: g.y, z: 60, vx: rnd(-1, 1), vz: 40, g: 200, size: 3, max: .6, col: '#7ec0ee' }); }
         if (g.timer <= 0) { g.mode = 'patrol'; g.route = []; }
         return;
     }
-    if (g.mode === 'goto') {
-        if (!g.route.length) { g.mode = g.after.mode; g.timer = g.after.dur; gsay(g, g.after.msg); return; }
-        walkGuard(g, g.speed * 1.5, dt);
+    if (g.susp && g.spot) {
+        turn(g, Math.atan2(g.spot[1] - g.y, g.spot[0] - g.x), dt * 1.5);
+        if (g.meter > .55 && !g.boss) {
+            g.repath -= dt;
+            if (g.repath <= 0) { g.repath = .5; g.route = bfs(Math.floor(g.x), Math.floor(g.y), Math.floor(g.spot[0]), Math.floor(g.spot[1]), g) || []; }
+            if (Math.hypot(g.spot[0] - g.x, g.spot[1] - g.y) > 1.2) { walkGuard(g, 1.3, dt); g.moving = true; }
+        }
         return;
     }
+    if (g.mode === 'goto') {
+        if (!g.route.length) { g.mode = g.after.mode; g.timer = g.after.dur; talk(g, g.after.msg); return; }
+        walkGuard(g, g.speed * 1.5, dt); g.moving = true;
+        return;
+    }
+    g.chatT -= dt;
+    if (g.chatT <= 0) { g.chatT = rnd(14, 30); talk(g, pick(g.boss ? GUARD_LINES.boss : GUARD_LINES.patrol), 2.4); }
     if (g.path.length === 1) {
         const p = g.path[0];
         if (Math.hypot(g.x - (p[0] + .5), g.y - (p[1] + .5)) > .15) {
             if (!g.route.length) g.route = bfs(Math.floor(g.x), Math.floor(g.y), p[0], p[1], g) || [];
-            walkGuard(g, g.speed || 1.6, dt);
+            walkGuard(g, g.speed || 1.6, dt); g.moving = true;
         } else turn(g, g.base + Math.sin(G.t * .7) * g.sweep, dt);
         return;
     }
@@ -412,40 +471,53 @@ function updateGuard(g, dt) {
         g.pi = (g.pi + 1) % g.path.length;
         g.route = bfs(Math.floor(g.x), Math.floor(g.y), g.path[g.pi][0], g.path[g.pi][1], g) || [];
     }
-    walkGuard(g, g.speed, dt);
+    walkGuard(g, g.speed, dt); g.moving = true;
 }
 
 function detect(dt) {
     for (const g of G.guards) {
-        if (g.mode === 'sleep' || g.mode === 'drink') { g.meter = Math.max(0, g.meter - dt); continue; }
-        let seen = 0;
+        if (!awake(g)) { g.meter = Math.max(0, g.meter - dt); g.susp = false; g.spot = null; continue; }
+        let seen = 0, spot = null;
         for (const c of G.chars) {
+            if (inSafe(c)) continue;
             const dx = c.x - g.x, dy = c.y - g.y, d = Math.hypot(dx, dy);
             if (d > g.range || (c.disguise > 0 && d > 2)) continue;
             const a = Math.atan2(Math.sin(Math.atan2(dy, dx) - g.dir), Math.cos(Math.atan2(dy, dx) - g.dir));
             if (Math.abs(a) > g.fov / 2 && d > 1) continue;
             if (!los(g.x, g.y, c.x, c.y)) continue;
-            seen = Math.max(seen, 1.2 + (g.range - d) * .25);
+            const rate = d < g.range * .45 ? 2.5 : .6 + (g.range - d) * .1;
+            if (rate > seen) { seen = rate; spot = [c.x, c.y]; }
         }
-        g.meter = clamp(g.meter + (seen ? seen * dt * .9 : -.5 * dt), 0, 1);
+        if (spot) g.spot = spot;
+        g.meter = clamp(g.meter + (seen ? seen * dt : -.35 * dt), 0, 1);
+        if (g.meter > .15 && !g.susp) {
+            g.susp = true; g.route = [];
+            talk(g, pick(['Eh? Chi va là?', 'Hm? Ho visto qualcosa...', 'C\'è qualcuno?', 'Puzza di luppolo...']), 1.8);
+            part({ kind: 'text', x: g.x, y: g.y, z: 80, vz: 25, txt: '?', col: '#ffd23f', size: 26, max: 1 });
+        }
+        if (g.meter <= .02 && g.susp) { g.susp = false; g.spot = null; g.route = []; talk(g, 'Mah... sarà stato il vento.', 1.6); }
+        if (g.meter > .6 && !g.alerted) {
+            g.alerted = true; sfx('alert');
+            part({ kind: 'text', x: g.x, y: g.y, z: 80, vz: 30, txt: '!', col: '#ff3a3a', size: 30, max: .9 });
+        }
+        if (g.meter < .3) g.alerted = false;
         if (g.meter >= 1) { fail(g); return; }
     }
 }
 
-const FAIL_LINES = [
-    '"Alcol?! Acqua per tutti!" — il Ministro vi ha scoperti.',
-    'Un Ispettore Acqua vi ha beccati e vi ha offerto una camomilla. Che umiliazione.',
-    '"Sobrietà obbligatoria!" Vi trascinano via a bere tisane.',
-];
 function fail(g) {
     G.state = 'lost';
-    gsay(g, 'ALT! Controllo sobrietà!');
+    talk(g, 'ALT! Controllo sobrietà!', 3, true);
+    g.hitT = .6; shake(8); sfx('lose');
+    pop(g.x, g.y, 'BECCATI!', '#ff3a3a', 40);
     setTimeout(() => {
-        screen('<h2>Beccati!</h2><p>' + FAIL_LINES[Math.floor(Math.random() * FAIL_LINES.length)] +
-            '</p><button class="btn" onclick="begin(' + G.mi + ')">Riprova</button><button class="btn" onclick="showTitle()">Menu</button>');
-    }, 900);
+        if (!G || G.state !== 'lost') return;
+        screen('<div class="cut"><div class="pimg"><img src="' + portraitOf('guard') + '" alt=""></div><div class="pbub"><b>Ispettore Acqua</b><p>ALT! Controllo sobrietà!</p></div></div>' +
+            '<h2>Beccati!</h2><p>' + pick(FAIL_LINES) + '</p><button class="btn" onclick="begin(' + G.mi + ')">Riprova</button><button class="btn ghost" onclick="showTitle()">Menu</button>');
+    }, 1600);
 }
 
+// ---------- aggiornamento ----------
 function update(dt) {
     G.t += dt;
     const pan = 520 * dt / zoom;
@@ -453,260 +525,392 @@ function update(dt) {
     const py = (keys.ArrowDown || keys.s ? 1 : 0) - (keys.ArrowUp || keys.w ? 1 : 0);
     if (px || py) { G.cam.x += px * pan; G.cam.y += py * pan; G.free = true; }
 
+    G.later.forEach(l => { l.t -= dt; if (l.t <= 0) l.f(); });
+    G.later = G.later.filter(l => l.t > 0);
+
+    const all = [...G.chars, ...G.guards];
+    all.forEach(e => { if (e.say) { e.say.t += dt; if (e.say.t > e.say.dur) e.say = null; } });
+
     if (G.state === 'play') {
         G.chars.forEach((c, i) => {
-            c.cdT = Math.max(0, c.cdT - dt);
+            c.cd = c.cd.map(v => Math.max(0, v - dt));
             c.disguise = Math.max(0, c.disguise - dt);
+            c.fireT = Math.max(0, c.fireT - dt);
+            c.hitT = Math.max(0, c.hitT - dt);
+            if (c.actKind) { c.actT += dt; if (c.actT >= c.actDur) { c.actKind = null; c.actProp = undefined; } }
             if (i !== G.sel && G.follow && !c.route.length) {
                 const l = G.chars[G.sel];
                 if (Math.hypot(l.x - c.x, l.y - c.y) > 2.4) c.route = bfs(Math.floor(c.x), Math.floor(c.y), Math.floor(l.x), Math.floor(l.y), c) || [];
             }
-            c.moving = follow(c, 3.3, dt);
+            c.moving = !c.actKind && follow(c, c.id === 'alcan' ? 3.6 : 3.3, dt);
             if (c.want && !c.route.length) { c.want = null; interact(c); }
+            if (c.fireT > 0 && Math.random() < .5) part({ kind: 'fire', x: c.x + (c.flip ? -.25 : .25), y: c.y - .25, z: 30, vz: rnd(30, 60), size: rnd(4, 7), max: .5 });
+            c.quipT -= dt;
+            if (c.quipT <= 0 && !c.moving && !c.say) { c.quipT = rnd(16, 30); talk(c, pick(c.quips), 3); }
         });
         G.guards.forEach(g => updateGuard(g, dt));
-        for (const d of G.dyn) { d.t -= dt; if (d.t <= 0) explode(d); }
+        for (const d of G.dyn) {
+            d.t -= dt;
+            if (Math.random() < .6) part({ kind: 'spark', x: d.x, y: d.y, z: 22, vx: rnd(-.8, .8), vy: rnd(-.8, .8), vz: rnd(30, 80), g: 200, size: 2.5, max: .4, col: pick(['#ffe14a', '#ff7a1a']) });
+            if (Math.random() < .1) sfx('fuse');
+            if (d.t <= 0) explode(d);
+        }
         G.dyn = G.dyn.filter(d => d.t > 0);
-        G.baits.forEach(b => b.t -= dt);
+        G.baits.forEach(b => {
+            b.t -= dt;
+            if (b.kind === 'smoke' || b.kind === 'gas') {
+                b.fx -= dt;
+                if (b.fx <= 0 && b.t > 1) { b.fx = b.kind === 'gas' ? .12 : .09; smokeAt(b.x, b.y, b.r * .8, b.kind === 'gas' ? '#9ad84a' : '#d8d8d8', b.kind === 'gas' && Math.random() < .15 ? '☠' : null); }
+            }
+            if (b.kind === 'gas') G.guards.forEach(g => {
+                if (g.mode !== 'sleep' && Math.hypot(g.x - b.x, g.y - b.y) < b.r) { sleepGuard(g, g.boss ? 10 : 8, pick(GUARD_LINES.gas)); g.hitT = .3; }
+            });
+        });
         G.baits = G.baits.filter(b => b.t > 0);
         if (G.t > 4) detect(dt);
+    } else {
+        G.chars.forEach(c => { if (c.actKind) { c.actT += dt; if (c.actT >= c.actDur) c.actKind = null; } });
     }
-    G.fx.forEach(f => f.t += dt);
-    G.fx = G.fx.filter(f => f.t < f.max);
+
+    G.proj.forEach(p => {
+        if (p.delay > 0) { p.delay -= dt; return; }
+        p.t += dt;
+        const f = Math.min(1, p.t / p.dur);
+        p.x = p.x0 + (p.x1 - p.x0) * f; p.y = p.y0 + (p.y1 - p.y0) * f;
+        p.z = 4 * p.h * f * (1 - f) + 30 * (1 - f);
+        if (p.kind === 'ember' || p.kind === 'dynamite') part({ kind: p.kind === 'ember' ? 'fire' : 'spark', x: p.x, y: p.y, z: p.z, size: 5, max: .35, col: '#ffe14a' });
+        if (f >= 1) { p.done = true; p.onLand(); }
+    });
+    G.proj = G.proj.filter(p => !p.done);
+
+    G.parts.forEach(p => {
+        p.life += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.rot += p.vr * dt;
+        if (p.g) {
+            p.vz -= p.g * dt;
+            if (p.z < 0) { p.z = 0; p.vz *= -.35; p.vx *= .6; p.vy *= .6; p.vr *= .5; }
+        }
+    });
+    G.parts = G.parts.filter(p => p.life < p.max);
+
+    ambient(dt);
+    if (G.marker) { G.marker.t += dt; if (G.marker.t > .7) G.marker = null; }
+    G.shake = Math.max(0, G.shake - dt * 30);
 
     if (!G.free) {
         const [tx, ty] = iso(G.chars[G.sel].x, G.chars[G.sel].y);
         G.cam.x += (tx - G.cam.x) * Math.min(1, dt * 5);
         G.cam.y += (ty - G.cam.y) * Math.min(1, dt * 5);
     }
-    document.querySelectorAll('.ch .cd').forEach((e, i) => {
+    document.querySelectorAll('.ch').forEach((e, i) => {
         const c = G.chars[i];
-        e.style.height = (c.cdT / c.cd * 100) + '%';
+        e.querySelectorAll('.cd').forEach((b, k) => b.style.height = (c.cd[k] / c.ab[k].cd * 100) + '%');
+    });
+}
+
+function ambient(dt) {
+    G.ambT -= dt;
+    if (G.ambT > 0) return;
+    G.ambT = .25;
+    const th = G.m.theme;
+    if (th.steam) G.objs.forEach(o => part({ kind: 'puff', x: o.x + .5, y: o.y + .5, z: 90, vz: rnd(15, 30), vx: rnd(-.2, .2), size: rnd(6, 10), grow: 1.5, max: 2, col: '#ffffff', alpha: o.done ? .6 : .25 }));
+    if (th.prop === 'table' && Math.random() < .6) {
+        const cs = [];
+        G.map.forEach((r, j) => r.forEach((t, i) => t === 'C' && cs.push([i, j])));
+        const [i, j] = pick(cs);
+        part({ kind: 'puff', x: i + .5, y: j + .5, z: 30, vz: rnd(10, 25), size: rnd(5, 9), grow: 1.5, max: 2, col: '#e8e8e8', alpha: .35 });
+    }
+    (G.m.signs || []).forEach(s => { if (Math.random() < .25) part({ kind: 'text', x: s.x + rnd(-.5, .5), y: s.y, z: 140, vz: 25, vx: rnd(-.4, .4), txt: pick(['♪', '♫']), col: '#ff9abf', size: 16, max: 2 }); });
+    G.objs.forEach(o => {
+        if (!o.done) return;
+        if (o.kind === 'tap') part({ kind: 'bubble', x: o.x + .7, y: o.y + .5, z: 45, vz: rnd(10, 30), size: rnd(2, 4), max: 1.2, col: 'rgba(255,240,200,.7)' });
+        if (o.kind === 'grill') for (let k = 0; k < 3; k++) part({ kind: 'fire', x: o.x + rnd(0, 1), y: o.y + rnd(.2, .8), z: 26, vz: rnd(20, 50), size: rnd(4, 8), max: .6 });
     });
 }
 
 // ---------- disegno ----------
-function poly(pts, col) {
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
-    ctx.closePath(); ctx.fill();
-}
-function box(x0, y0, x1, y1, h, top, left, right, timber) {
-    const a = iso(x0, y1), b = iso(x1, y1), c = iso(x1, y0), d = iso(x0, y0);
-    const up = p => [p[0], p[1] - h];
-    poly([a, b, up(b), up(a)], left);
-    poly([b, c, up(c), up(b)], right);
-    poly([up(d), up(c), up(b), up(a)], top);
-    if (timber) {
-        ctx.strokeStyle = 'rgba(245,235,215,.75)'; ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1] - h);
-        ctx.moveTo(b[0], b[1]); ctx.lineTo(a[0], a[1] - h);
-        ctx.moveTo(b[0], b[1]); ctx.lineTo(c[0], c[1] - h);
-        ctx.moveTo(c[0], c[1]); ctx.lineTo(b[0], b[1] - h);
-        ctx.stroke();
-    }
-}
-function ell(x, y, rx, ry, fill, stroke) {
+function ell(x, y, rx, ry, fill, stroke, lw = 2) {
     const [sx, sy] = iso(x, y);
     ctx.beginPath(); ctx.ellipse(sx, sy, rx, ry, 0, 0, 7);
     if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
 }
 const ringR = r => [r * 32 * 1.4142, r * 16 * 1.4142];
 
-function floorColor(t, i, j, th) {
-    const k = (i + j) & 1;
-    if (t === 'p') return k ? th.p : shade(th.p, -10);
-    if (t === '.') return k ? th.c : shade(th.c, -12);
-    return k ? th.a : th.b;
-}
-function shade(hex, d) {
-    const n = parseInt(hex.slice(1), 16);
-    const f = v => clamp(v + d, 0, 255);
-    return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => f(v).toString(16).padStart(2, '0')).join('');
+function floorFill(t, th) {
+    const kind = th.mat[t] || 'concrete', base = t === 'p' ? th.p : t === '.' ? th.c : th.a;
+    return pattern(kind, base, 'floor');
 }
 
-function px(spec, sx, sy, u) {
-    for (const [x, y, w, h, col] of spec) { ctx.fillStyle = col; ctx.fillRect(sx + x * u, sy + y * u, w * u, h * u); }
-}
-function base(shirt, pants, skin) {
-    return [[-3, -5, 2.5, 5, pants], [.5, -5, 2.5, 5, pants], [-4, -12, 8, 7, shirt],
-    [-6, -12, 2, 6, shirt], [4, -12, 2, 6, shirt], [-6, -6, 2, 2, skin], [4, -6, 2, 2, skin], [-3.5, -18, 7, 6, skin]];
-}
-function charSpec(c) {
-    const skin = '#e8b78a';
-    switch (c.id) {
-        case 'estice': return [...base('#7a5a35', '#3a3a3a', skin), [-4.5, -21, 9, 4, '#f2c200'], [-1, -20.5, 2, 2, '#fff6a0'],
-        [7, -16, 1.5, 14, '#6b4a2a'], [5, -17, 6, 1.5, '#9aa0a6'], [-8, -6, 2, 4, '#c0392b']];
-        case 'alcan': return [...base('#1f2f5c', '#2b2b3a', skin), [-3.5, -19, 7, 2, '#2b1b12'], [-3, -16, 6, 1.5, '#111'],
-        [6, -9, 2, 5, '#c98a2b'], [-3, -9, 6, 2, '#ddd']];
-        case 'muglo': return [...base('#f2f2f2', '#3b4f7a', skin), [-6.5, -19, 13, 1.5, '#7b4a22'], [-3.5, -23, 7, 4, '#8b5a2b'],
-        [7, -14, 1.2, 8, '#bbb'], [6.3, -17, 3, 3, '#999']];
-        case 'unicorn': return [...base('#e68ab8', '#555', skin), [-4, -21, 8, 3, '#2a62d1'], [2, -19, 6, 1.5, '#2a62d1'],
-        [6, -10, 3, 4, '#f0b429'], [6, -11, 3, 1, '#fff']];
-        default: return [...base(c.disguise > 0 ? '#1f3f8f' : '#444', '#2b2b3a', skin), [-3.5, -14, 7, 3, '#2a1b14'], [-3, -16, 6, 1.5, '#111'],
-        ...(c.disguise > 0 ? [[-.5, -12, 1, 5, '#c0392b']] : [[6, -9, 4, 4, '#e07b22']])];
+function drawWall(i, j, th) {
+    const H = j === G.H - 1 || i === G.W - 1 ? 10 : 42, w = (a, b) => tileAt(a, b) === '#';
+    const a = iso(i, j + 1), b = iso(i + 1, j + 1), c = iso(i + 1, j), d = iso(i, j), up = p => [p[0], p[1] - H];
+    const mat = th.stripes ? 'canvas' : 'brick';
+    const sV = !w(i, j + 1), eV = !w(i + 1, j);
+    if (sV) poly([a, b, up(b), up(a)], pattern(mat, th.wL, 'L'));
+    if (eV) { poly([b, c, up(c), up(b)], pattern(mat, th.wL, 'R')); ctx.fillStyle = 'rgba(20,10,0,.28)'; ctx.fill(); }
+    poly([up(d), up(c), up(b), up(a)], pattern('plain', th.wT, 'floor'));
+    if (th.timber) {
+        ctx.strokeStyle = 'rgba(70,40,20,.85)'; ctx.lineWidth = 2.2; ctx.beginPath();
+        if (sV) { ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1] - H); ctx.moveTo(b[0], b[1]); ctx.lineTo(a[0], a[1] - H); }
+        if (eV) { ctx.moveTo(b[0], b[1]); ctx.lineTo(c[0], c[1] - H); ctx.moveTo(c[0], c[1]); ctx.lineTo(b[0], b[1] - H); }
+        ctx.stroke();
     }
-}
-
-function drawChar(c, selected) {
-    const [sx, sy] = iso(c.x, c.y), u = 2.6;
-    if (selected) ell(c.x, c.y, 24, 12, null, '#f2b705');
-    ell(c.x, c.y, 14, 6, '#0005');
-    const bob = c.moving ? Math.sin(G.t * 14) * 1.5 : 0;
-    px(charSpec(c), sx, sy + bob, u);
-    if (c.disguise > 0) { ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('travestito', sx, sy - 70); }
-    if (selected) { ctx.fillStyle = '#f2b705'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(c.name, sx, sy - 56); }
-}
-
-function drawGuard(g) {
-    const [sx, sy] = iso(g.x, g.y), s = g.boss ? 1.35 : 1, u = 2.6 * s;
-    ell(g.x, g.y, 14 * s, 6 * s, '#0005');
-    const body = g.boss ? ['#222', '#1a1a1a'] : ['#8d949c', '#2d2d33'];
-    const spec = [...base(body[0], body[1], '#e0ad84'), [-.5, -12, 1, 5, g.boss ? '#2ecc71' : '#c0392b'],
-    g.boss ? [-4.5, -21, 9, 3, '#f5f5f5'] : [-4, -20, 8, 3, '#2f7d6d'], [6, -10, 2, 4, '#9fd8ff'], [-6, -10, 2, 2, '#4aa3ff']];
-    if (g.mode === 'sleep') {
-        ctx.save(); ctx.translate(sx, sy); ctx.rotate(-1.4); px(spec, 0, 0, u); ctx.restore();
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText('Zzz', sx, sy - 30 - Math.sin(G.t * 3) * 4);
-    } else px(spec, sx, sy, u);
-    const top = sy - 62 * s;
-    if (g.meter > .03) {
-        ctx.fillStyle = '#000a'; ctx.fillRect(sx - 18, top, 36, 5);
-        ctx.fillStyle = g.meter > .6 ? '#e22' : '#fc0'; ctx.fillRect(sx - 18, top, 36 * g.meter, 5);
-        if (g.meter > .6) { ctx.fillStyle = '#e22'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('!', sx, top - 4); }
+    if (sV && hash(i, j) < .25 && j > 0 && j < G.H - 1) {
+        const m = iso(i + .5, j + 1);
+        const gl = ctx.createLinearGradient(m[0] - 9, m[1] - 34, m[0] + 9, m[1] - 14);
+        gl.addColorStop(0, '#dff3ff'); gl.addColorStop(.45, '#7fa8c8'); gl.addColorStop(1, '#2a4058');
+        poly([[m[0] - 9, m[1] - 30 + 4.5], [m[0] + 9, m[1] - 30 - 4.5], [m[0] + 9, m[1] - 14 - 4.5], [m[0] - 9, m[1] - 14 + 4.5]], gl, 1);
     }
-    if (g.sayT > 0) {
-        ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-        const w = ctx.measureText(g.sayTxt).width + 12;
-        ctx.fillStyle = '#fff'; ctx.fillRect(sx - w / 2, top - 30, w, 20);
-        ctx.fillStyle = '#222'; ctx.fillText(g.sayTxt, sx, top - 16);
-    }
-}
-
-function drawCone(g) {
-    if (g.mode === 'sleep' || g.mode === 'drink') return;
-    const pts = [iso(g.x, g.y)], n = 20;
-    for (let k = 0; k <= n; k++) {
-        const a = g.dir - g.fov / 2 + g.fov * k / n;
-        let d = .3;
-        while (d < g.range && !opaque(g.x + Math.cos(a) * d, g.y + Math.sin(a) * d)) d += .25;
-        pts.push(iso(g.x + Math.cos(a) * d, g.y + Math.sin(a) * d));
-    }
-    poly(pts, `rgba(255,${Math.round(220 - g.meter * 190)},60,${.16 + g.meter * .3})`);
+    const seg = (p, q) => { ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); };
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(255,245,225,.4)'; ctx.lineWidth = 1.2; ctx.beginPath();
+    if (eV) seg(up(c), up(b));
+    if (sV) seg(up(b), up(a));
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1; ctx.beginPath();
+    if (eV) seg(b, c);
+    if (sV) seg(a, b);
+    if (sV && eV) seg(b, up(b));
+    if (sV && !w(i - 1, j)) seg(a, up(a));
+    if (eV && !w(i, j - 1)) seg(c, up(c));
+    ctx.stroke();
 }
 
 function drawBlock(i, j, t, th) {
-    const x0 = i, y0 = j, x1 = i + 1, y1 = j + 1;
     switch (t) {
-        case '#': box(x0, y0, x1, y1, 46, th.wT, th.wL, th.wR, th.timber); break;
-        case 'T': {
-            const [sx, sy] = iso(i + .5, j + .5);
-            ctx.fillStyle = '#6b4a2a'; ctx.fillRect(sx - 3, sy - 14, 6, 14);
-            [['#2f7d32', 0, -34, 22], ['#3fa143', -8, -26, 16], ['#4bb24f', 8, -26, 15]].forEach(([c, dx, dy, r]) => {
-                ctx.fillStyle = c; ctx.beginPath(); ctx.arc(sx + dx, sy + dy, r, 0, 7); ctx.fill();
-            });
-            break;
-        }
-        case 'C': box(i + .1, j + .1, i + .9, j + .9, 24, '#c89a5a', '#a67a3e', '#8a6230', false); break;
-        case 'B': {
-            box(x0, y0, x1, y1, 28, '#e8e8e8', '#d94a3a', '#b53a2c', false);
-            const [sx, sy] = iso(i + 1, j + 1);
-            ctx.fillStyle = '#fff'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText('VIETATO', sx - 16, sy - 12);
-            break;
-        }
-        case 'K': box(x0, y0, x1, y1, 44, '#5a6c8a', '#3d5a8a', '#2c4470', false); {
-            const [sx, sy] = iso(i + 1, j + 1);
-            ctx.fillStyle = '#ffd54a'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText('STAFF', sx - 16, sy - 18);
-        } break;
-        case 'O': {
-            const o = G.objs.find(o => o.x === i && o.y === j), done = o && o.done;
-            if (G.mi === 2) box(i - .5, j + .1, i + 1.5, j + .9, 18, '#7a4a28', '#5f381d', '#4a2c16', false);
-            box(i + .2, j + .2, i + .8, j + .8, 26, done ? '#7fbf7f' : '#e8a735', done ? '#5a9a5a' : '#b97a1c', done ? '#437a43' : '#8a5a12', false);
-            if (!done) {
-                const [sx, sy] = iso(i + .5, j + .5), b = Math.sin(G.t * 4) * 5;
-                poly([[sx - 9, sy - 62 + b], [sx + 9, sy - 62 + b], [sx, sy - 48 + b]], '#ffd23f');
-            }
-            break;
-        }
+        case '#': drawWall(i, j, th); break;
+        case 'T': drawTree(i, j, Math.floor(G.t * STOP) / STOP); break;
+        case 'C': drawProp3D(th.prop, i, j, G.t); break;
+        case 'B': drawBarricade(i, j, G.t); break;
+        case 'K': drawDoor(i, j, G.t); break;
+        case 'O': drawObjective(G.objs.find(o => o.x === i && o.y === j), i, j, G.t, th); break;
     }
 }
 
-function drawSign(s) {
-    const [sx, sy] = iso(s.x, s.y);
-    ctx.fillStyle = '#444'; ctx.fillRect(sx - 3, sy - 150, 6, 150);
-    ctx.fillStyle = '#f4ecd8'; ctx.fillRect(sx - 68, sy - 200, 136, 62);
-    ctx.strokeStyle = '#8b1a3a'; ctx.lineWidth = 3; ctx.strokeRect(sx - 68, sy - 200, 136, 62);
-    ctx.textAlign = 'center'; ctx.fillStyle = '#8b1a3a';
-    ctx.font = 'italic bold 30px Georgia,serif'; ctx.fillText(s.title, sx - 8, sy - 168);
-    ctx.font = 'italic 15px Georgia,serif'; ctx.fillText(s.sub, sx + 34, sy - 152);
-    ctx.fillRect(sx - 68, sy - 146, 136, 8);
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 9px sans-serif'; ctx.fillText(s.tag, sx, sy - 139);
+// Pose a scatti (stop-motion) + saltelli rigidi da giocattolo.
+function drawEntity(e) {
+    const isG = e.kind === 'guard', [sx, sy] = iso(e.x, e.y);
+    const ts = Math.floor(G.t * STOP) / STOP, sel = !isG && G.chars[G.sel] === e;
+    const base = isG && e.boss ? 1.3 : 1;
+    drawStand(sx, sy, base);
+    if (sel) {
+        ctx.save(); ctx.setLineDash([6, 5]); ctx.lineDashOffset = -ts * 30;
+        ell(e.x, e.y, 24, 12, null, '#f2b705', 3); ctx.restore();
+    }
+
+    let hop = 0, tilt = 0, jx = 0;
+    const mode = isG ? e.mode : null;
+    if (e.moving) {
+        const ph = Math.floor(e.phase * 2) / 2;
+        hop = Math.abs(Math.sin(ph)) * 7;
+        tilt = Math.sin(ph) * .12;
+    } else if (mode === 'laugh') { hop = Math.abs(Math.sin(ts * 14)) * 4; tilt = Math.sin(ts * 9) * .15; }
+    else if (mode === 'flee') { hop = Math.abs(Math.sin(ts * 20)) * 8; tilt = Math.sin(ts * 20) * .2; }
+    else if (mode === 'drink') tilt = Math.sin(ts * 2) * .18;
+    else if (!isG && e.actKind === 'up') hop = Math.abs(Math.sin(e.actT * 10)) * 10;
+    else if (!isG && e.actKind === 'adjust') { tilt = Math.sin(ts * 16) * .08; jx = Math.sin(ts * 25) * 1.5; }
+    if (e.hitT > 0) { jx += Math.sin(ts * 60) * 4; tilt += .25 * e.hitT; }
+    if (!isG && e.actKind === 'throw') tilt += e.actT / e.actDur < .35 ? -.15 : .12;
+    if (!isG && e.actKind === 'punch') jx += (e.flip ? -1 : 1) * 6 * (1 - e.actT / e.actDur);
+    const fr = Math.floor(G.t * STOP);
+    jx += (hash(fr, e.seed * 10 + 1) - .5) * 1.2; tilt += (hash(e.seed + 3, fr) - .5) * .03;
+
+    ctx.save();
+    ctx.translate(sx + jx, sy - hop);
+    ctx.rotate(tilt);
+    const sm = e.look && e.look.small ? .88 : 1;
+    ctx.scale(base * sm, base * sm);
+    if (isG ? drawGuardSprite(e) : drawCharSprite(e)) { /* sprite PNG */ }
+    else {
+        if (mode === 'sleep') { ctx.translate(0, -4); ctx.rotate(e.flip ? 1.45 : -1.45); ctx.translate(0, 14); }
+        drawChibi(e.look, poseOf(e, ts));
+    }
+    ctx.restore();
+
+    if (isG) {
+        const top = sy - 80 * base;
+        if (e.meter > .03 && awake(e)) {
+            ctx.fillStyle = '#000a'; ctx.fillRect(sx - 19, top, 38, 6);
+            ctx.fillStyle = e.meter > .6 ? '#e22' : '#fc0'; ctx.fillRect(sx - 18, top + 1, 36 * e.meter, 4);
+        }
+        if (e.boss) {
+            ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = OUT;
+            ctx.strokeText(e.label, sx, sy + 20); ctx.fillStyle = '#ffd23f'; ctx.fillText(e.label, sx, sy + 20);
+        }
+    } else if (sel || e.disguise > 0) {
+        ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = OUT;
+        const lbl = e.name + (e.disguise > 0 ? ' 👔' : '');
+        ctx.strokeText(lbl, sx, sy + 20); ctx.fillStyle = sel ? '#f2b705' : '#fff'; ctx.fillText(lbl, sx, sy + 20);
+    }
+}
+
+function drawCharSprite(c) {
+    let n = c.id + (c.back ? '-back' : '-front');
+    if ((c.actKind && c.actKind !== 'adjust') || (c.id === 'proboscis' && c.disguise > 0)) n = c.id + '-action';
+    if (!SPR[n]) return false;
+    return drawSprite(n, 76, c.flip);
+}
+
+function drawGuardSprite(g) {
+    if (g.boss) {
+        if (!SPR['boss-astemi']) return false;
+        if (g.mode === 'sleep') { ctx.translate(0, -6); ctx.rotate(-1.45); ctx.translate(0, 20); }
+        return drawSprite('boss-astemi', 80, g.flip);
+    }
+    let n = g.back ? 'guard-back' : 'guard-front';
+    if (g.mode === 'sleep') n = 'guard-sleep';
+    else if (g.mode === 'stunned' || g.mode === 'laugh') n = 'guard-stunned';
+    else if (g.mode === 'flee' || g.meter > .6 || G.state === 'lost') n = 'guard-alert';
+    if (!SPR[n]) return false;
+    return drawSprite(n, n === 'guard-sleep' ? 40 : 76, g.flip);
+}
+
+function poseOf(e, ts) {
+    const P = { back: e.back, flip: e.flip, phase: Math.floor(e.phase * 2) / 2, moving: e.moving, t: ts, expr: 'normal', arm: 'idle', blink: ((G.t + e.seed) % 3.4) < .12 };
+    if (e.kind === 'guard') {
+        face(e, Math.cos(e.dir), Math.sin(e.dir)); P.back = e.back; P.flip = e.flip;
+        const m = { sleep: ['sleep', 'idle'], laugh: ['laugh', 'belly'], stunned: ['stunned', 'idle'], flee: ['shock', 'up'], drink: ['drunk', 'drink'] }[e.mode];
+        if (m) [P.expr, P.arm] = m;
+        if (e.mode === 'drink') P.prop = 'whisky';
+        if (e.mode === 'stunned' || e.mode === 'flee') P.prop = null;
+        if (e.meter > .6 || G.state === 'lost') P.expr = 'shock';
+        return P;
+    }
+    P.disguise = e.id === 'proboscis' && e.disguise > 0;
+    if (P.disguise) P.prop = 'folder';
+    P.fire = e.fireT > 0;
+    if (e.actKind) {
+        P.arm = e.actKind; P.actP = e.actT / e.actDur;
+        if (e.actProp !== undefined) P.prop = e.actProp;
+        P.expr = { throw: 'open', punch: 'angry', up: 'laugh', adjust: e.id === 'estice' ? 'grin' : 'smirk' }[e.actKind] || 'normal';
+    }
+    if (e.hitT > 0) P.expr = 'shock';
+    return P;
+}
+
+function drawProj(p) {
+    const [sx, sy] = iso(p.x, p.y);
+    ctx.beginPath(); ctx.ellipse(sx, sy, 6, 3, 0, 0, 7); ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fill();
+    ctx.save(); ctx.translate(sx, sy - p.z); ctx.rotate(p.t * 14); ctx.scale(1.3, 1.3);
+    if (p.kind === 'grill') { rr(-7, -4, 14, 7, 2); fs('#333', 1.6); }
+    else drawProp(p.kind, { t: G.t });
+    ctx.restore();
+}
+
+function drawBait(b) {
+    const [sx, sy] = iso(b.x, b.y);
+    ctx.save(); ctx.translate(sx, sy);
+    if (b.kind === 'whisky') { ctx.scale(1.3, 1.3); drawProp('whisky', { t: G.t }); }
+    else if (b.kind === 'gas') { ctx.globalAlpha = Math.min(1, b.t / 1.5) * .85; drawSprite('estice-gas', 90); }
+    else if (b.kind === 'smoke' && !drawSprite('muglo-grill', 34)) {
+        rr(-11, -12, 22, 9, 2); fs('#333', 1.6);
+        ctx.fillStyle = '#ff7a1a'; ctx.fillRect(-9, -13, 18, 2);
+        ctx.strokeStyle = OUT; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-8, -3); ctx.lineTo(-10, 4); ctx.moveTo(8, -3); ctx.lineTo(10, 4); ctx.stroke();
+    }
+    ctx.restore();
 }
 
 function render() {
     const th = G.m.theme;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = th.bg; ctx.fillRect(0, 0, cw, ch);
+    drawBackdrop(cw, ch, th);
     ctx.save();
-    ctx.translate(cw / 2, ch / 2); ctx.scale(zoom, zoom); ctx.translate(-G.cam.x, -G.cam.y);
+    ctx.translate(cw / 2 + rnd(-1, 1) * G.shake, ch / 2 + rnd(-1, 1) * G.shake);
+    ctx.scale(zoom, zoom); ctx.translate(-G.cam.x, -G.cam.y);
 
+    drawDiorama(G.W, G.H, th);
     for (let j = 0; j < G.H; j++) for (let i = 0; i < G.W; i++) {
         const t = G.map[j][i];
-        if (t === '#') continue;
-        poly([iso(i, j), iso(i + 1, j), iso(i + 1, j + 1), iso(i, j + 1)], floorColor(t === 'O' ? 'p' : t, i, j, th));
+        const pts = [iso(i, j), iso(i + 1, j), iso(i + 1, j + 1), iso(i, j + 1)];
+        poly(pts, floorFill(t === 'O' ? 'p' : '#TCBK'.includes(t) ? ',' : t, th));
+        ctx.fillStyle = `rgba(0,0,0,${hash(i, j) * .07})`; ctx.fill();
     }
+    if (G.marker) {
+        const k = G.marker.t / .7, [rx, ry] = ringR(.15 + k * .4);
+        ell(G.marker.x, G.marker.y, rx, ry, null, G.marker.ok ? `rgba(120,255,120,${1 - k})` : `rgba(255,80,80,${1 - k})`, 3);
+    }
+    drawSafe();
     G.guards.forEach(drawCone);
 
     const c = G.chars[G.sel];
-    if (G.targeting) {
-        const [rx, ry] = ringR(c.range);
-        ell(c.x, c.y, rx, ry, 'rgba(255,255,255,.08)', '#fff');
-        const [wx, wy] = toWorld(mouse[0], mouse[1]), d = Math.hypot(wx - c.x, wy - c.y), k = d > c.range ? c.range / d : 1;
-        ell(c.x + (wx - c.x) * k, c.y + (wy - c.y) * k, 18, 9, 'rgba(255,80,60,.35)', '#f55');
+    if (G.targeting >= 0) {
+        const ab = c.ab[G.targeting], [rx, ry] = ringR(ab.range);
+        ctx.save(); ctx.setLineDash([8, 6]); ctx.lineDashOffset = -G.t * 20;
+        ell(c.x, c.y, rx, ry, 'rgba(255,255,255,.07)', '#fff'); ctx.restore();
+        const [wx, wy] = toWorld(mouse[0], mouse[1]), d = Math.hypot(wx - c.x, wy - c.y), k = d > ab.range ? ab.range / d : 1;
+        const tx = c.x + (wx - c.x) * k, ty = c.y + (wy - c.y) * k;
+        const rad = { estice: 2.3, unicorn: 1.9, muglo: 2.4, alcan: .6 }[c.id] || 1;
+        const [ax, ay] = ringR(rad);
+        ell(tx, ty, ax, ay, 'rgba(255,80,60,.25)', '#f55', 2);
+        const [sx0, sy0] = iso(c.x, c.y), [sx1, sy1] = iso(tx, ty);
+        ctx.save(); ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(sx0, sy0 - 30); ctx.quadraticCurveTo((sx0 + sx1) / 2, Math.min(sy0, sy1) - 90, sx1, sy1); ctx.stroke(); ctx.restore();
     }
-    G.fx.forEach(f => {
-        const p = f.t / f.max, [rx, ry] = ringR(f.r * p);
-        ell(f.x, f.y, rx, ry, `rgba(${f.col},${.4 * (1 - p)})`, `rgba(${f.col},${1 - p})`);
-    });
 
     const list = [];
     for (let j = 0; j < G.H; j++) for (let i = 0; i < G.W; i++) {
         const t = G.map[j][i];
         if ('#TCBKO'.includes(t)) list.push({ d: i + j + 1, f: () => drawBlock(i, j, t, th) });
     }
-    G.chars.forEach((ch, i) => list.push({ d: ch.x + ch.y, f: () => drawChar(ch, i === G.sel) }));
-    G.guards.forEach(g => list.push({ d: g.x + g.y, f: () => drawGuard(g) }));
+    G.chars.forEach(ch => list.push({ d: ch.x + ch.y, f: () => drawEntity(ch) }));
+    G.guards.forEach(g => list.push({ d: g.x + g.y, f: () => drawEntity(g) }));
     G.dyn.forEach(d => list.push({
         d: d.x + d.y, f: () => {
             const [sx, sy] = iso(d.x, d.y);
-            ctx.fillStyle = '#c0392b'; ctx.fillRect(sx - 3, sy - 14, 6, 14);
-            ctx.fillStyle = Math.sin(G.t * 30) > 0 ? '#ffd23f' : '#ff6a00'; ctx.fillRect(sx - 2, sy - 20, 4, 6);
+            ctx.save(); ctx.translate(sx, sy); ctx.scale(1.4, 1.4); drawProp('dynamite', { t: G.t }); ctx.restore();
+            ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = OUT;
+            ctx.strokeText(Math.ceil(d.t), sx, sy - 34); ctx.fillStyle = '#ff5a3a'; ctx.fillText(Math.ceil(d.t), sx, sy - 34);
         }
     }));
-    G.baits.forEach(b => list.push({
-        d: b.x + b.y, f: () => {
-            const [sx, sy] = iso(b.x, b.y);
-            if (b.kind === 'whisky') { ctx.fillStyle = '#c98a2b'; ctx.fillRect(sx - 4, sy - 16, 8, 16); ctx.fillRect(sx - 2, sy - 22, 4, 6); }
-            else { ctx.fillStyle = '#222'; ctx.fillRect(sx - 9, sy - 10, 18, 10); ctx.fillStyle = '#ff7a1a'; ctx.fillRect(sx - 7, sy - 12, 14, 3); }
-        }
-    }));
-    (G.m.signs || []).forEach(s => list.push({ d: s.x + s.y, f: () => drawSign(s) }));
+    G.baits.forEach(b => list.push({ d: b.x + b.y, f: () => drawBait(b) }));
+    G.proj.forEach(p => list.push({ d: p.x + p.y + .5, f: () => drawProj(p) }));
+    (G.m.signs || []).forEach(s => list.push({ d: s.x + s.y, f: () => drawSign(s, Math.floor(G.t * STOP) / STOP) }));
     list.sort((a, b) => a.d - b.d).forEach(o => o.f());
-
-    G.baits.filter(b => b.kind === 'smoke').forEach(b => {
-        const [sx, sy] = iso(b.x, b.y), a = Math.min(1, b.t / 2) * .55;
-        for (let k = 0; k < 7; k++) {
-            const ang = k * 2.4 + G.t * .6, r = 18 + (k % 3) * 14;
-            ctx.fillStyle = `rgba(215,215,215,${a})`;
-            ctx.beginPath(); ctx.arc(sx + Math.cos(ang) * r * 1.4, sy - 14 - (G.t * 12 + k * 9) % 30 + Math.sin(ang) * r * .5, 22 + k % 3 * 5, 0, 7); ctx.fill();
-        }
-    });
+    // Sagome visibili attraverso i muri
+    ctx.save(); ctx.globalAlpha = .35;
+    [...G.chars, ...G.guards].forEach(drawEntity);
     ctx.restore();
+
+    G.parts.filter(p => p.kind !== 'pop').forEach(drawParticle);
+    [...G.chars, ...G.guards].forEach(e => {
+        if (!e.say) return;
+        const [sx, sy] = iso(e.x, e.y), h = e.kind === 'guard' && e.boss ? 100 : e.mode === 'sleep' ? 40 : 82;
+        drawBubble(sx, sy - h, e.say.txt, e.say.t, e.say.shout);
+    });
+    G.parts.filter(p => p.kind === 'pop').forEach(drawParticle);
+    ctx.restore();
+}
+
+function drawCone(g) {
+    if (!awake(g)) return;
+    const o = iso(g.x, g.y), far = [o], near = [o], n = 24, nr = g.range * .45;
+    for (let k = 0; k <= n; k++) {
+        const a = g.dir - g.fov / 2 + g.fov * k / n, cx = Math.cos(a), cy = Math.sin(a);
+        let d = .3;
+        while (d < g.range && !opaque(g.x + cx * d, g.y + cy * d)) d += .2;
+        far.push(iso(g.x + cx * d, g.y + cy * d));
+        const dn = Math.min(d, nr);
+        near.push(iso(g.x + cx * dn, g.y + cy * dn));
+    }
+    const m = g.meter, col = m > .6 ? '255,60,40' : m > .15 ? '255,160,40' : '255,235,150';
+    const pulse = m > .15 ? .1 * Math.sin(G.t * 12) : 0;
+    const lg = ctx.createRadialGradient(o[0], o[1], 4, o[0], o[1], g.range * 42);
+    lg.addColorStop(0, `rgba(${col},${.55 + pulse})`); lg.addColorStop(.45, `rgba(${col},${.32 + pulse})`); lg.addColorStop(1, `rgba(${col},.06)`);
+    ctx.save(); ctx.globalCompositeOperation = 'screen';
+    poly(far, lg);
+    ctx.setLineDash([6, 5]); ctx.strokeStyle = `rgba(${col},.75)`; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+    poly(near, `rgba(${col},${.18 + pulse})`);
+    ctx.restore();
+}
+
+function drawSafe() {
+    const z = G.safe, pts = [iso(z.x0, z.y0), iso(z.x1, z.y0), iso(z.x1, z.y1), iso(z.x0, z.y1)];
+    poly(pts, 'rgba(70,220,110,.22)');
+    ctx.save(); ctx.setLineDash([10, 6]); ctx.lineDashOffset = -G.t * 15;
+    ctx.strokeStyle = 'rgba(40,170,80,.95)'; ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
+    const [lx, ly] = iso((z.x0 + z.x1) / 2, z.y0);
+    ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = OUT;
+    ctx.strokeText('🛡 ZONA SICURA', lx, ly - 8); ctx.fillStyle = '#7dff9a'; ctx.fillText('🛡 ZONA SICURA', lx, ly - 8);
 }
 
 // ---------- HUD e schermate ----------
@@ -715,29 +919,69 @@ function hideScreen() { $('screen').hidden = true; }
 
 function showTitle() {
     G = null; $('hud').hidden = true;
-    screen('<h1>E-TEAM: Operazione Sobrietà Zero</h1>' +
-        '<p>Un politicante astemio ha fatto sparire ogni bevanda alcolica dall\'Italia. Cinque amici inseparabili, cinque abilità, nessuna intenzione di restare a secco.</p>' +
-        '<p class="warn">Gioco comico per adulti (18+): tema alcol. Nessuna violenza, solo guardie che si addormentano.</p>' +
-        '<p class="small">Click/tocco: muovi il personaggio · 1-5: cambia personaggio · Q: abilità · E: interagisci · F: segui · trascina/WASD: sposta la vista · R: riavvia</p>' +
+    const boxes = CHARS.map((c, i) => `<img src="${c.img}" alt="${c.name}" style="--i:${i - 2}">`).join('');
+    screen('<div class="boxes">' + boxes + '</div>' +
+        '<h1 class="logo">E-TEAM<small>Operazione Sobrietà Zero</small></h1>' +
+        '<p>Un ministro astemio ha messo al bando ogni bevanda alcolica. Cinque action hero da collezione, dieci abilità discutibili, zero intenzione di restare a secco.</p>' +
+        '<p class="warn">Gioco comico per adulti (18+): alcol e umorismo da caserma. Nessuna violenza vera: le guardie si addormentano, ridono o scappano.</p>' +
+        '<p class="small">Click/tocco: muovi · 1-5 o Tab: cambia personaggio · Q / X: abilità · E: interagisci · F: segui · trascina/WASD: vista · rotella: zoom · M: audio · R: riavvia</p>' +
         MISSIONS.map((m, i) => '<button class="btn" onclick="showBrief(' + i + ')">' + m.name + '</button>').join('<br>'));
 }
 
+function panelImg(p) {
+    if (p.char) return CHARS.find(c => c.id === p.char).img;
+    if (p.boss) return portraitOf('boss');
+    return p.img;
+}
+
+let cutTimer = 0;
+function cutscene(panels, done) {
+    let i = 0;
+    const show = () => {
+        const p = panels[i], c = p.char && CHARS.find(x => x.id === p.char);
+        const who = c ? c.name + ' · ' + c.role : p.who;
+        screen(`<div class="cut ${i % 2 ? 'alt' : ''}"><div class="pimg"><img src="${panelImg(p)}" alt=""></div>` +
+            `<div class="pbub"><b>${who}</b><p class="ptxt"></p></div></div>` +
+            `<div class="dots">${panels.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div>` +
+            `<button class="btn" id="cNext">${i < panels.length - 1 ? 'Avanti ▶' : 'Via! ▶'}</button><button class="btn ghost" id="cSkip">Salta</button>`);
+        const el = $('screen').querySelector('.ptxt');
+        let n = 0;
+        clearInterval(cutTimer);
+        cutTimer = setInterval(() => {
+            n += 2; el.textContent = p.line.slice(0, n);
+            if (n % 6 === 0) sfx('talk');
+            if (n >= p.line.length) clearInterval(cutTimer);
+        }, 28);
+        $('cNext').onclick = () => {
+            if (n < p.line.length) { n = p.line.length; el.textContent = p.line; clearInterval(cutTimer); return; }
+            sfx('click');
+            if (++i < panels.length) show(); else { clearInterval(cutTimer); done(); }
+        };
+        $('cSkip').onclick = () => { clearInterval(cutTimer); done(); };
+    };
+    show();
+}
+
 function showBrief(i) {
-    const m = MISSIONS[i];
-    screen((i === 0 ? '<img class="br" src="assets/ludwig.jpg" alt="Ludwig Pub" onerror="this.remove()">' : '') +
-        '<h2>' + m.name + '</h2><p>' + m.intro + '</p><p class="small">Suggerimento: ' + m.hint + '</p>' +
-        '<button class="btn" onclick="begin(' + i + ')">Via!</button><button class="btn" onclick="showTitle()">Indietro</button>');
+    auInit();
+    cutscene(MISSIONS[i].intro, () => {
+        const m = MISSIONS[i];
+        screen('<h2>' + m.name + '</h2><ul class="objl">' + m.objectives.map(o => '<li>' + o.text + '</li>').join('') + '</ul>' +
+            '<p class="small">Suggerimento: ' + m.hint + '</p>' +
+            '<button class="btn" onclick="begin(' + i + ')">Inizia missione</button><button class="btn ghost" onclick="showTitle()">Indietro</button>');
+    });
 }
 
 function begin(i) {
+    auInit();
     loadMission(i); hideScreen();
     $('hud').hidden = false;
     $('mtitle').textContent = MISSIONS[i].name;
-    $('team').innerHTML = CHARS.map((c, k) => `<button class="ch" data-i="${k}" title="${c.role}: ${c.abil}"><i>${k + 1}</i>` +
-        `<img src="${c.img}" alt="${c.name}"><span>${c.name}</span><div class="cd"></div></button>`).join('');
+    $('team').innerHTML = CHARS.map((c, k) => `<button class="ch" data-i="${k}" title="${c.role}: ${c.ab.map(a => a.name).join(' / ')}"><i>${k + 1}</i>` +
+        `<img src="${SPR[c.id + '-portrait'] ? spritePath(c.id + '-portrait') : c.img}" alt="${c.name}"><span>${c.name}</span><div class="cd q"></div><div class="cd x"></div></button>`).join('');
     $('team').querySelectorAll('.ch').forEach(b => b.onclick = () => select(+b.dataset.i));
     refreshHud();
-    say(MISSIONS[i].hint, 5000);
+    toast('Partite dalla ZONA SICURA verde: lì nessuno vi vede. ' + MISSIONS[i].hint, 6000);
 }
 
 function refreshHud() {
@@ -745,24 +989,30 @@ function refreshHud() {
     $('objs').innerHTML = G.objs.map(o => `<li class="${o.done ? 'done' : ''}">${o.text}</li>`).join('');
     document.querySelectorAll('.ch').forEach((b, i) => b.classList.toggle('sel', i === G.sel));
     const c = G.chars[G.sel];
-    $('bAbil').textContent = 'Q: ' + c.abil;
-    $('bAbil').title = c.desc;
-    $('bAbil').classList.toggle('on', G.targeting);
+    ['bAbil', 'bAbil2'].forEach((id, k) => {
+        const ab = c.ab[k];
+        $(id).innerHTML = `<kbd>${k ? 'X' : 'Q'}</kbd> ${ab.icon} ${ab.name}`;
+        $(id).title = ab.desc;
+        $(id).classList.toggle('on', G.targeting === k);
+    });
     $('bFollow').textContent = 'Segui: ' + (G.follow ? 'SÌ' : 'NO') + ' (F)';
+    $('bMute').textContent = AU.on ? '🔊 Audio (M)' : '🔇 Audio (M)';
 }
 
-function showWin() {
+function showOutro() {
     if (!G || G.state !== 'won') return;
-    const next = G.mi + 1 < MISSIONS.length;
-    screen('<h2>Missione compiuta!</h2><p>' + G.objs[G.objs.length - 1].msg + '</p>' +
-        (next ? '<button class="btn" onclick="showBrief(' + (G.mi + 1) + ')">Prossima missione</button>'
-            : '<p>Il Ministro si risveglia, assaggia un sorso e... brinda con voi. L\'Italia è salva. Salute!</p>') +
-        '<button class="btn" onclick="showTitle()">Menu</button>');
+    const mi = G.mi, next = mi + 1 < MISSIONS.length;
+    cutscene(MISSIONS[mi].outro, () => {
+        screen('<h2>Missione compiuta! 🍻</h2><p>' + G.objs[G.objs.length - 1].msg + '</p>' +
+            (next ? '<button class="btn" onclick="showBrief(' + (mi + 1) + ')">Prossima missione</button>'
+                : '<p><b>L\'Italia è salva. L\'E-TEAM brinda. Salute!</b></p>') +
+            '<button class="btn ghost" onclick="showTitle()">Menu</button>');
+    });
 }
 
 // ---------- input ----------
 let ptr = null;
-cv.addEventListener('pointerdown', e => { ptr = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: false }; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointerdown', e => { auInit(); ptr = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: false }; cv.setPointerCapture(e.pointerId); });
 cv.addEventListener('pointermove', e => {
     mouse = [e.clientX, e.clientY];
     if (!ptr || !G) return;
@@ -774,29 +1024,40 @@ cv.addEventListener('pointerup', e => {
     if (ptr && !ptr.moved && G && G.state === 'play') tap(e.clientX, e.clientY);
     ptr = null;
 });
+cv.addEventListener('wheel', e => { e.preventDefault(); zoomMul = clamp(zoomMul * (e.deltaY > 0 ? .9 : 1.1), .6, 1.8); resize(); }, { passive: false });
+addEventListener('pointerdown', () => auInit(), { once: true });
 addEventListener('keydown', e => {
     keys[e.key] = true;
+    if (e.key === 'm' || e.key === 'M') { auInit(); auToggle(); refreshHud(); return; }
     if (!G || G.state !== 'play') return;
     if (e.key >= '1' && e.key <= '5') select(+e.key - 1);
     else if (e.key === 'Tab') { e.preventDefault(); select((G.sel + 1) % 5); }
-    else if (e.key === 'q' || e.key === 'Q') startAbility();
+    else if (e.key === 'q' || e.key === 'Q') startAbility(0);
+    else if (e.key === 'x' || e.key === 'X') startAbility(1);
     else if (e.key === 'e' || e.key === 'E') interact(G.chars[G.sel]);
     else if (e.key === 'f' || e.key === 'F') { G.follow = !G.follow; refreshHud(); }
     else if (e.key === 'r' || e.key === 'R') begin(G.mi);
-    else if (e.key === 'Escape') { G.targeting = false; refreshHud(); }
+    else if (e.key === 'Escape') { G.targeting = -1; refreshHud(); }
 });
 addEventListener('keyup', e => { keys[e.key] = false; });
-$('bAbil').onclick = startAbility;
+$('bAbil').onclick = () => startAbility(0);
+$('bAbil2').onclick = () => startAbility(1);
 $('bAct').onclick = () => G && G.state === 'play' && interact(G.chars[G.sel]);
 $('bFollow').onclick = () => { if (G) { G.follow = !G.follow; refreshHud(); } };
+$('bMute').onclick = () => { auInit(); auToggle(); refreshHud(); };
 $('bRestart').onclick = () => G && begin(G.mi);
 
-let last = 0;
+let last = 0, lastF = -1;
 function loop(ts) {
     const dt = Math.min(.05, (ts - last) / 1000 || 0);
     last = ts;
-    if (G) { update(dt); render(); } else { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = '#111'; ctx.fillRect(0, 0, cw, ch); }
+    if (G) {
+        update(dt);
+        const f = Math.floor(ts / 1000 * STOP);
+        if (f !== lastF) { lastF = f; render(); postProcess(cv, ctx, cw, ch, dpr, f); }
+    } else { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = '#111'; ctx.fillRect(0, 0, cw, ch); }
     requestAnimationFrame(loop);
 }
+loadSprites();
 showTitle();
 requestAnimationFrame(loop);
