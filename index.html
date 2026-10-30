@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
     <title>E-TEAM: Operazione Sobrietà Zero</title>
-    <link rel="stylesheet" href="style.css?v=10">
+    <link rel="stylesheet" href="style.css?v=21">
 </head>
 
 <body>
@@ -15,22 +15,29 @@
             <ul id="objs"></ul>
         </div>
         <div id="toast"></div>
+        <div id="alarm" hidden></div>
+        <div id="planbar" hidden><span id="planTxt"></span><button id="bGo">▶ Via! (Spazio)</button></div>
         <div id="side">
             <button id="bAbil"></button>
             <button id="bAbil2"></button>
             <button id="bAct">Interagisci (E)</button>
+            <button id="bHint">💡 Indizio (H)</button>
+            <button id="bPlan">🎬 Pianifica (P)</button>
             <button id="bFollow">Segui: NO (F)</button>
             <button id="bMute">🔊 Audio (M)</button>
+            <button id="bSave">💾 Salva (F5)</button>
+            <button id="bLoad">⟲ Carica (F9)</button>
             <button id="bRestart">Riavvia (R)</button>
         </div>
         <div id="team"></div>
         <canvas id="mini" title="Mappa: clicca per spostare la vista"></canvas>
     </div>
     <div id="screen" class="overlay"></div>
-    <script src="data.js?v=10"></script>
-    <script src="audio.js?v=10"></script>
-    <script src="art.js?v=10"></script>
-    <script src="game.js?v=10"></script>
+    <script src="data.js?v=21"></script>
+    <script src="audio.js?v=21"></script>
+    <script src="art.js?v=21"></script>
+    <script src="game.js?v=21"></script>
+    <script src="systems.js?v=21"></script>
 </body>
 
 </html>

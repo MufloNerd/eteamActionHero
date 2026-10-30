@@ -38,6 +38,7 @@ FOLDER = {n: f for f, names in GROUPS.items() for n in names}
 ALIASES = {'-item': '-grill', '-profile': '-portrait', '-profilo': '-portrait', '-ritratto': '-portrait', '-busto': '-portrait',
            '-fronte': '-front', '-retro': '-back', '-spalle': '-back', '-azione': '-action'}
 EXTS = {'.png', '.jpg', '.jpeg', '.webp'}
+IGNORE = {'ludwig'}  # immagini usate direttamente dal gioco, non sprite
 
 try:
     from rembg import new_session, remove as rembg_remove
@@ -113,6 +114,71 @@ def remove_background(img):
     return Image.fromarray(rgba), f'sfondo rimosso ({bg.mean() * 100:.0f}%)'
 
 
+def trim_texture_frame(img):
+    """Toglie cornici, bordi decorativi e finte scacchiere attorno a una texture."""
+    a = np.asarray(img.convert('RGB')).astype(float)
+    h, w, _ = a.shape
+    c = a[h // 3: 2 * h // 3, w // 3: 2 * w // 3]
+    mean, spread = c.reshape(-1, 3).mean(0), c.reshape(-1, 3).std(0).mean()
+    lim = max(35, spread * 2.2)
+    bad_r = np.abs(a.mean(1) - mean).max(1) > lim
+    bad_c = np.abs(a.mean(0) - mean).max(1) > lim
+    if spread > 45:  # texture a righe forti: si tolgono solo i bordi quasi neri
+        bad_r, bad_c = a.mean((1, 2)) < 70, a.mean((0, 2)) < 70
+    # cerca la cornice entro il 12% di ogni lato, anche se c'è altro materiale fuori dalla cornice
+    def cut(bad, n):
+        k = int(n * .12)
+        lo = max([i + 1 for i in range(k) if bad[i]], default=0)
+        hi = min([i for i in range(n - k, n) if bad[i]], default=n)
+        return lo, hi
+    y0, y1 = cut(bad_r, h)
+    x0, x1 = cut(bad_c, w)
+    if (y0, y1, x0, x1) != (0, h, 0, w):
+        m = int(min(h, w) * .01)
+        y0, x0, y1, x1 = y0 + m, x0 + m, y1 - m, x1 - m
+    # quadrato centrale: niente deformazioni
+    side = min(x1 - x0, y1 - y0)
+    x0 += (x1 - x0 - side) // 2
+    y0 += (y1 - y0 - side) // 2
+    x1, y1 = x0 + side, y0 + side
+    return img.crop((x0, y0, x1, y1))
+
+
+def make_seamless(img):
+    """Fonde i bordi con una copia spostata di mezza piastrella, così la texture si ripete senza cuciture."""
+    a = np.asarray(img.convert('RGB')).astype(float)
+    n = a.shape[0]
+    rolled = np.roll(np.roll(a, n // 2, 0), n // 2, 1)
+    t = np.abs(np.linspace(-1, 1, n))
+    wgt = np.clip((np.maximum(t[:, None], t[None, :]) - .55) / .45, 0, 1)[..., None]
+    return Image.fromarray((a * (1 - wgt) + rolled * wgt).astype(np.uint8))
+
+
+def seam_score(img):
+    a = np.asarray(img.convert('RGB')).astype(int)
+    m = a.shape[0] // 2
+    edge = (np.abs(a[:, 0] - a[:, -1]).mean() + np.abs(a[0] - a[-1]).mean()) / 2
+    inner = (np.abs(a[:, m - 1] - a[:, m]).mean() + np.abs(a[m - 1] - a[m]).mean()) / 2
+    return edge, inner
+
+
+def prepare_texture(img):
+    t = trim_texture_frame(img).resize((512, 512), Image.LANCZOS)
+    edge, inner = seam_score(t)
+    if edge > inner * 1.4 + 4:
+        return make_seamless(t), f'texture 512x512, cornice tolta, bordi resi continui ({edge:.0f}->{seam_score(make_seamless(t))[0]:.0f})'
+    return t, 'texture 512x512'
+
+
+def crop_to_content(img, margin=12):
+    """Ritaglia i bordi trasparenti lasciando un piccolo margine."""
+    box = img.getchannel('A').point(lambda v: 255 if v > 20 else 0).getbbox()
+    if not box:
+        return img
+    x0, y0, x1, y1 = box
+    return img.crop((max(0, x0 - margin), max(0, y0 - margin), min(img.width, x1 + margin), min(img.height, y1 + margin)))
+
+
 def main():
     if '--rifai' in sys.argv:
         files = [p for p in ORIG.glob('*') if p.suffix.lower() in EXTS]
@@ -124,6 +190,8 @@ def main():
     ORIG.mkdir(parents=True, exist_ok=True)
     for p in sorted(files):
         name = canonical(p.stem)
+        if name in IGNORE:
+            continue
         folder = FOLDER.get(name)
         if not folder:
             print(f'?  {p.relative_to(ROOT)}: nome sconosciuto "{name}", ignorato')
@@ -135,9 +203,10 @@ def main():
         img = Image.open(p)
         img.load()
         if folder == 'texture':
-            out, note = img.convert('RGB').resize((512, 512), Image.LANCZOS), 'texture 512x512'
+            out, note = prepare_texture(img)
         else:
             out, note = remove_background(img)
+            out = crop_to_content(out)
         if not from_orig:
             shutil.copy2(str(p), str(ORIG / p.name))
             if p.resolve() != dest.resolve():

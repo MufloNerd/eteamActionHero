@@ -279,8 +279,7 @@ canvas {
 .boxes img {
     height: 140px;
     margin: 0 -10px;
-    border-radius: 6px;
-    box-shadow: 0 6px 14px #000a;
+    filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .6));
     transform: rotate(calc(var(--i) * 6deg)) translateY(calc(var(--i) * var(--i) * 4px));
     animation: flt 2.6s ease-in-out infinite;
     animation-delay: calc(var(--i) * .3s);
@@ -609,4 +608,380 @@ body {
 #objs li {
     font-size: 11.5px;
     line-height: 1.3
+}
+
+/* ---------- nuovi sistemi ---------- */
+#alarm {
+    position: absolute;
+    left: 50%;
+    top: 10px;
+    transform: translateX(-50%);
+    background: linear-gradient(#e63a2e, #a51e16);
+    color: #fff;
+    font: 900 16px Impact, "Arial Black", sans-serif;
+    letter-spacing: 1px;
+    padding: 6px 16px;
+    border-radius: 4px;
+    border: 2px solid #ffd2c8;
+    box-shadow: 0 0 18px rgba(255, 40, 30, .7);
+    animation: blink .6s steps(2) infinite
+}
+
+@keyframes blink {
+    50% {
+        opacity: .65
+    }
+}
+
+#planbar {
+    position: absolute;
+    left: 50%;
+    top: 52px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: rgba(20, 14, 8, .85);
+    color: #ffd23f;
+    border: 2px solid #c9a36a;
+    border-radius: 6px;
+    padding: 6px 8px 6px 14px;
+    font-weight: bold;
+    pointer-events: auto
+}
+
+#planbar button {
+    background: linear-gradient(#ffe68a, #e9b22a 55%, #c98f10);
+    border: 1px solid #8a6510;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-weight: bold;
+    cursor: pointer
+}
+
+#objs li em {
+    display: block;
+    font-style: italic;
+    font-weight: normal;
+    color: #4a2a08;
+    margin: 2px 0 0 14px
+}
+
+.ch.jail {
+    filter: grayscale(1) brightness(.6)
+}
+
+.ch.jail::before {
+    content: "🔒";
+    position: absolute;
+    right: 4px;
+    top: 4px;
+    z-index: 2
+}
+
+.report {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    background: rgba(0, 0, 0, .25);
+    padding: 10px;
+    border-radius: 6px
+}
+
+.report table {
+    font-size: 14px;
+    border-collapse: collapse
+}
+
+.report td {
+    padding: 2px 10px 2px 0
+}
+
+.grade {
+    font: 900 64px Impact, "Arial Black", sans-serif;
+    width: 90px;
+    text-align: center;
+    -webkit-text-stroke: 2px #1d1a22;
+    animation: stamp .5s cubic-bezier(.3, 1.8, .5, 1)
+}
+
+@keyframes stamp {
+    from {
+        transform: scale(3) rotate(-20deg);
+        opacity: 0
+    }
+}
+
+.gS {
+    color: #ffd23f
+}
+
+.gA {
+    color: #7fff7a
+}
+
+.gB {
+    color: #7ec0ee
+}
+
+.gC {
+    color: #ffb02a
+}
+
+.gD {
+    color: #ff6a5a
+}
+
+.ucom {
+    font-style: italic
+}
+
+.medals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0
+}
+
+.medals span {
+    background: #f7f1e3;
+    color: #2b2420;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-weight: bold;
+    font-size: 13px;
+    box-shadow: 2px 3px 6px rgba(0, 0, 0, .4)
+}
+
+.medals.big span {
+    display: flex;
+    flex-direction: column;
+    min-width: 46%
+}
+
+.medals.big small {
+    font-weight: normal;
+    opacity: .75
+}
+
+.medals span.off {
+    opacity: .45
+}
+
+.best {
+    font: 900 14px Impact, sans-serif;
+    margin-left: 6px;
+    padding: 0 6px;
+    background: #1d1a22;
+    border-radius: 3px
+}
+
+.extra {
+    margin-top: 10px
+}
+
+.tut {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px;
+    margin-bottom: 10px
+}
+
+.tut div {
+    background: #f7f1e3;
+    color: #2b2420;
+    padding: 8px 10px;
+    border-radius: 3px;
+    box-shadow: 2px 3px 6px rgba(0, 0, 0, .4)
+}
+
+.tut span {
+    font-size: 22px;
+    margin-right: 6px
+}
+
+.tut p {
+    margin: 4px 0 0;
+    font-size: 13px
+}
+
+.papere li {
+    margin: 6px 0
+}
+
+.papere li.off {
+    opacity: .5;
+    font-style: italic
+}
+
+#planbar[hidden],
+#alarm[hidden] {
+    display: none
+}
+
+/* ---------- difficoltà e cariche ---------- */
+.diff {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin: 4px 0 12px
+}
+
+.diff small {
+    flex-basis: 100%;
+    opacity: .8
+}
+
+.nch {
+    background: #3a2408;
+    color: #ffe68a;
+    border-radius: 4px;
+    padding: 0 5px;
+    font-size: 12px
+}
+
+#side button.empty {
+    filter: grayscale(.8) brightness(.8)
+}
+
+.ch .chg {
+    position: absolute;
+    top: 4px;
+    font: 900 11px Impact, sans-serif;
+    background: #3a2408;
+    color: #ffe68a;
+    border-radius: 3px;
+    padding: 0 4px;
+    z-index: 2
+}
+
+.ch .chg.q {
+    right: 20px
+}
+
+.ch .chg.x {
+    right: 3px
+}
+
+.ch .chg.zero {
+    background: #7a1020;
+    color: #fff
+}
+
+.ch.jail::before {
+    top: 34px;
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 20px
+}
+
+/* ---------- manuale ---------- */
+.mtabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px
+}
+
+.manual {
+    max-height: 62vh;
+    overflow: auto;
+    background: #f7f1e3;
+    color: #2b2420;
+    border-radius: 4px;
+    padding: 10px 16px;
+    margin-bottom: 10px;
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, .25)
+}
+
+.manual h3 {
+    margin: 14px 0 4px;
+    color: #7a2a10;
+    font-family: Georgia, serif
+}
+
+.manual h3 small {
+    color: #7a6a50;
+    font-weight: normal;
+    font-style: italic
+}
+
+.manual p {
+    margin: 4px 0;
+    font-size: 14px
+}
+
+.manual table.keys {
+    border-collapse: collapse;
+    font-size: 13px;
+    width: 100%
+}
+
+.manual table.keys td {
+    border-bottom: 1px solid #d9cdb0;
+    padding: 4px 6px;
+    vertical-align: top
+}
+
+.manual table.keys td:first-child {
+    font-weight: bold;
+    white-space: nowrap;
+    width: 32%
+}
+
+.mchar {
+    display: flex;
+    gap: 14px;
+    border-bottom: 2px dashed #d9cdb0;
+    padding: 10px 0
+}
+
+.mchar img {
+    width: 110px;
+    height: 140px;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .35));
+    flex: none
+}
+
+.mchar .trait {
+    font-weight: bold;
+    color: #3f5a1a
+}
+
+.mab {
+    margin: 6px 0;
+    padding: 6px 8px;
+    background: #fffaf0;
+    border-left: 4px solid #e9b22a;
+    border-radius: 2px
+}
+
+.mab .tags {
+    font-size: 11px;
+    color: #7a6a50;
+    display: block
+}
+
+.mab .eff {
+    color: #7a2a10;
+    font-style: italic
+}
+
+.menemy {
+    padding: 8px 0;
+    border-bottom: 1px solid #d9cdb0
+}
+
+@media (max-width:700px) {
+    .mchar {
+        flex-direction: column
+    }
+
+    .mchar img {
+        width: 80px;
+        height: 100px
+    }
 }

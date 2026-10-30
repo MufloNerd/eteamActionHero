@@ -50,12 +50,13 @@ function loadMission(i) {
         chars: CHARS.map((c, k) => ({
             ...c, kind: 'char', x: m.starts[k][0] + .5, y: m.starts[k][1] + .5,
             route: [], cd: [0, 0], disguise: 0, want: null, say: null, phase: 0, back: true, flip: false,
-            actT: 0, actDur: 0, actKind: null, actProp: undefined, fireT: 0, hitT: 0, seed: k * 2.3, quipT: rnd(8, 20) + k * 4,
+            actT: 0, actDur: 0, actKind: null, actProp: undefined, fireT: 0, hitT: 0, seed: k * 2.3, quipT: rnd(20, 40) + k * 6, captured: false,
         })),
-        objs: m.steps.map(o => ({ ...o, done: false })),
+        objs: m.steps.map(o => ({ ...o, done: false, hintShown: false, revealed: false })),
     };
     const xs = m.starts.map(p => p[0]), ys = m.starts.map(p => p[1]);
     G.safe = { x0: Math.max(1, Math.min(...xs) - 1), x1: Math.min(G.W - 1, Math.max(...xs) + 2), y0: Math.max(1, Math.min(...ys) - 1), y1: Math.min(G.H - 1, Math.max(...ys) + 2) };
+    initSystems(m);
     const c = G.chars[0];
     [G.cam.x, G.cam.y] = iso(c.x, c.y);
 }
@@ -168,8 +169,10 @@ function talk(e, txt, dur = 2.6, shout = false) { e.say = { txt, t: 0, dur, shou
 function startAbility(k) {
     if (!G || G.state !== 'play') return;
     const c = G.chars[G.sel], ab = c.ab[k];
+    if (c.captured) { toast(c.name + ' è in cella: prima liberalo.'); return; }
+    if (c.charges[k] === 0) { toast(ab.name + ': cariche finite! Cerca le bottiglie segrete per ricaricare.'); talk(c, 'Sono a secco...'); return; }
     if (c.cd[k] > 0) { toast(ab.name + ' in ricarica (' + Math.ceil(c.cd[k]) + 's)'); return; }
-    if (!ab.target) { castAt(c, k); return; }
+    if (!ab.target) { if (G.plan) queueAction(c, k); else castAt(c, k); return; }
     G.targeting = G.targeting === k ? -1 : k;
     if (G.targeting >= 0) toast(ab.icon + ' ' + ab.name + ': tocca/clicca dove usarla (Esc per annullare)');
     refreshHud();
@@ -205,6 +208,7 @@ function castAt(c, k, wx, wy) {
                 G.baits.push({ kind: 'whisky', x: wx, y: wy, t: 10, r: 0 });
                 burst(8, wx, wy, () => ({ kind: 'spark', z: 6, vx: rnd(-1.5, 1.5), vy: rnd(-1.5, 1.5), vz: rnd(40, 90), g: 260, size: 2.5, max: .5, col: '#ffd27a' }));
                 lure(wx, wy, 9, 'drink', 6, 'Glu glu... Macallan 12!');
+                banter('whisky', [wx, wy]);
             });
             break;
         case 'alcan1': ok = alcanPunch(c); break;
@@ -220,6 +224,7 @@ function castAt(c, k, wx, wy) {
         case 'muglo1':
             act(c, 'throw', .7, 'ember'); c.fireT = 1.4; sfx('sizzle');
             throwProj(c, wx, wy, 'ember', () => emberLand(wx, wy));
+            banter('ember', [c.x, c.y]);
             break;
         case 'unicorn0':
             act(c, 'throw', .6, 'potion');
@@ -230,6 +235,7 @@ function castAt(c, k, wx, wy) {
             c.disguise = 14; sfx('poof'); act(c, 'up', .5);
             burst(14, c.x, c.y, () => ({ kind: 'puff', z: rnd(10, 50), vx: rnd(-1, 1), vy: rnd(-1, 1), vz: rnd(10, 30), size: rnd(10, 16), grow: .8, max: .9, col: '#f4f4f4' }));
             pop(c.x, c.y, 'TA-DAN!', '#7ec0ee', 28);
+            banter('disguise', [c.x, c.y]);
             break;
         case 'proboscis1': proboscisWow(c); break;
     }
@@ -237,6 +243,7 @@ function castAt(c, k, wx, wy) {
     const line = pick(c.castLines[k] || []);
     if (line && !(c.say && c.say.t < .5)) talk(c, line, 2.2, true);
     c.cd[k] = ab.cd;
+    if (c.charges[k] > 0) c.charges[k]--;
     refreshHud();
 }
 
@@ -261,7 +268,8 @@ function inReach(c, r, needLos = true) {
 function esticeGas(c) {
     act(c, 'adjust', 1.1); sfx('fart'); shake(4);
     pop(c.x, c.y, 'PRRRRT!', '#8fdc4a', 40);
-    G.baits.push({ kind: 'gas', x: c.x, y: c.y, t: 6, r: 2.3, fx: 0 });
+    G.baits.push({ kind: 'gas', x: c.x, y: c.y, t: 6, r: 2.3, fx: 0, hits: 0 });
+    banter('gas', [c.x, c.y]);
     for (let k = 0; k < 22; k++) smokeAt(c.x, c.y, 1.6, '#9ad84a', k % 6 ? null : '☠');
     lure(c.x, c.y, 6.5, 'look', 3, 'Che puzza... da dove viene?');
 }
@@ -277,7 +285,9 @@ function alcanPunch(c) {
     pop(g.x, g.y, 'POW!', '#ff4a3a', 40);
     burst(8, g.x, g.y, () => ({ kind: 'star', z: rnd(40, 60), vx: rnd(-2, 2), vy: rnd(-2, 2), vz: rnd(40, 100), g: 200, size: rnd(5, 8), max: .9, rot: rnd(0, 6), vr: rnd(-6, 6) }));
     g.hitT = .4;
-    sleepGuard(g, g.boss ? 4 : 7, pick(GUARD_LINES.punch));
+    sleepGuard(g, g.boss ? 6 : 12, pick(GUARD_LINES.punch));
+    G.stats.punches++;
+    banter('punch', [c.x, c.y]);
     lure(c.x, c.y, 4, 'look', 3, 'Cos\'è stato?!');
     return true;
 }
@@ -290,6 +300,7 @@ function emberLand(x, y) {
         if (g.boss) { talk(g, 'Brace?! Che maleducazione!', 2.4, true); return; }
         if (immune(g, 'flee')) return;
         flee(g, x, y);
+        G.stats.fled++;
     });
 }
 
@@ -300,7 +311,7 @@ function flee(g, sx, sy) {
         const tx = Math.floor(g.x + dx / d * r), ty = Math.floor(g.y + dy / d * r);
         if (walk(tx, ty, g)) route = bfs(Math.floor(g.x), Math.floor(g.y), tx, ty, g);
     }
-    g.mode = 'flee'; g.timer = 5; g.route = route || []; g.meter = 0;
+    g.mode = 'flee'; g.timer = 7; g.route = route || []; g.meter = 0;
     talk(g, pick(GUARD_LINES.flee), 2, true);
 }
 
@@ -309,9 +320,10 @@ function potionLand(x, y) {
     burst(22, x, y, () => ({ kind: 'bubble', z: rnd(0, 20), vx: rnd(-1.2, 1.2), vy: rnd(-1.2, 1.2), vz: rnd(20, 60), size: rnd(3, 7), max: rnd(.8, 1.5), col: 'rgba(255,200,40,.6)' }));
     let n = 0;
     G.guards.forEach(g => {
-        if (Math.hypot(g.x - x, g.y - y) < 1.9 && g.mode !== 'sleep' && !immune(g, 'sleep')) { sleepGuard(g, g.boss ? 16 : 14, pick(GUARD_LINES.sleep)); n++; }
+        if (Math.hypot(g.x - x, g.y - y) < 1.9 && g.mode !== 'sleep' && !immune(g, 'sleep')) { sleepGuard(g, g.boss ? 24 : 22, pick(GUARD_LINES.sleep)); n++; }
     });
     toast(n ? 'Pozione al luppolo: nanna!' : 'Pozione sprecata... nessuno nel raggio.');
+    if (n) banter('potion', [x, y]);
 }
 
 function unicornJoke(c) {
@@ -322,7 +334,10 @@ function unicornJoke(c) {
         if (!hit.length) { toast('Nessuno ha riso. Silenzio imbarazzante.'); sfx('lose'); return; }
         sfx('laugh');
         pop(c.x, c.y, 'AHAHAH!', '#f07ab8', 36);
-        hit.forEach(g => { if (immune(g, 'laugh')) return; g.mode = 'laugh'; g.timer = 8; g.route = []; g.meter = 0; talk(g, pick(GUARD_LINES.laugh), 2.4, true); });
+        let n = 0;
+        hit.forEach(g => { if (immune(g, 'laugh')) return; g.mode = 'laugh'; g.timer = 12; g.route = []; g.meter = 0; n++; talk(g, pick(GUARD_LINES.laugh), 2.4, true); });
+        G.stats.jokeMax = Math.max(G.stats.jokeMax, n);
+        if (n) banter('joke', [c.x, c.y]);
     });
 }
 
@@ -333,9 +348,12 @@ function proboscisWow(c) {
         pop(c.x, c.y, 'WOW!', '#ff7ab8', 42);
         const hit = inReach(c, c.ab[1].range);
         if (!hit.length) toast('Nessuno ha visto. Peccato.');
+        const n = hit.filter(g => !g.immune.includes('stun')).length;
+        G.stats.wowMax = Math.max(G.stats.wowMax, n);
+        if (n) banter('wow', [c.x, c.y]);
         hit.forEach(g => {
             if (immune(g, 'stun')) return;
-            g.mode = 'stunned'; g.timer = 7; g.route = []; g.meter = 0;
+            g.mode = 'stunned'; g.timer = 10; g.route = []; g.meter = 0;
             face(g, c.x - g.x, c.y - g.y);
             g.dir = Math.atan2(c.y - g.y, c.x - g.x);
             talk(g, pick(GUARD_LINES.stunned), 2.6);
@@ -344,14 +362,15 @@ function proboscisWow(c) {
     });
 }
 
-function sleepGuard(g, t, txt) { g.mode = 'sleep'; g.timer = t; g.route = []; g.meter = 0; talk(g, txt); sfx('sleep'); }
+function sleepGuard(g, t, txt) { g.mode = 'sleep'; g.timer = t; g.route = []; g.meter = 0; g.susp = false; talk(g, txt); sfx('sleep'); G.stats.knocked++; }
 
 function lure(x, y, range, mode, dur, msg, kind = 'lure') {
+    part({ kind: 'ring', x, y, size: range, max: 1.2, col: kind === 'food' ? 'rgba(255,170,60,.9)' : 'rgba(255,225,90,.9)' });
     G.guards.forEach(g => {
         if (g.boss || !['patrol', 'look', 'goto'].includes(g.mode)) return;
         if (Math.hypot(g.x - x, g.y - y) > range) return;
         let after = { mode, dur, msg };
-        if (kind === 'food' && g.foodie) after = { mode: 'eat', dur: 14, msg: 'Salsicce! Le mie preferite!' };
+        if (kind === 'food' && g.foodie) after = { mode: 'eat', dur: 20, msg: 'Salsicce! Le mie preferite!' };
         else if (g.immune.includes('lure')) return;
         const r = bfs(Math.floor(g.x), Math.floor(g.y), Math.floor(x), Math.floor(y), g);
         if (!r) return;
@@ -369,11 +388,12 @@ function explode(d) {
             burst(14, i + .5, j + .5, () => ({ kind: 'debris', z: 20, vx: rnd(-3, 3), vy: rnd(-3, 3), vz: rnd(150, 280), g: 520, size: rnd(3, 5), max: 1.8, col: pick(['#a8763f', '#ffd23f', '#8a5a2b']), rot: rnd(0, 6), vr: rnd(-12, 12) }));
         }
     }
-    G.guards.forEach(g => { if (!g.boss && Math.hypot(g.x - d.x, g.y - d.y) < 1.8) { g.hitT = .5; if (!g.immune.includes('sleep')) sleepGuard(g, 5, 'Bzzzz... stordito'); } });
+    G.guards.forEach(g => { if (!g.boss && Math.hypot(g.x - d.x, g.y - d.y) < 1.8) { g.hitT = .5; if (!g.immune.includes('sleep')) sleepGuard(g, 8, 'Bzzzz... stordito'); } });
     G.chars.forEach(c => { if (Math.hypot(c.x - d.x, c.y - d.y) < 2.5) c.hitT = .5; });
     explosionFx(d.x, d.y);
     pop(d.x, d.y, 'BOOM!', '#ff8a1a', 52);
     shake(16); sfx('boom');
+    banter('boom', [d.x, d.y]);
     lure(d.x, d.y, 10, 'look', 5, 'Cos\'è stato?!');
 }
 
@@ -383,6 +403,9 @@ const stepReady = o => (o.after || []).every(id => G.objs.find(x => x.id === id)
 const bossGuard = () => G.guards.find(g => g.boss);
 
 function interact(c) {
+    if (c.captured) { toast(c.name + ' è in cella: serve un altro personaggio.'); return false; }
+    const cap = G.chars.find(x => x !== c && x.captured && Math.hypot(x.x - c.x, x.y - c.y) < 1.6);
+    if (cap) { freeChar(cap); return true; }
     const o = G.objs.find(o => !o.done && o.x != null && Math.hypot(c.x - (o.x + .5), c.y - (o.y + .5)) < 1.9);
     if (!o) { toast('Qui non c\'è niente da fare.'); return false; }
     if (!stepReady(o)) {
@@ -390,8 +413,12 @@ function interact(c) {
         toast('Prima: ' + miss.map(x => x.text).join(' · '), 3500);
         return false;
     }
-    if (o.who && c.id !== o.who) { toast('Serve ' + charName(o.who) + ': ' + o.text, 3200); talk(c, 'Non sono capace... chiamate ' + charName(o.who) + '!'); return false; }
-    if (o.disguise && !(c.disguise > 0)) { toast('Proboscis deve prima indossare il completo da agente (Q).', 3200); talk(c, 'Così in maglietta non mi prendono sul serio.'); return false; }
+    if (o.who && c.id !== o.who) {
+        toast(c.name + ' non sa farlo. Prova con qualcun altro (o premi H per un indizio).', 3500);
+        talk(c, pick(['Non è roba per me.', 'Serve qualcun altro.', 'Io? Mai fatto in vita mia.']));
+        return false;
+    }
+    if (o.disguise && !(c.disguise > 0)) { toast('Così in maglietta non ti prendono sul serio: serve un look da professionista.', 3500); talk(c, 'Mi serve il completo buono.'); return false; }
     if (o.asleep === 'boss' && bossGuard().mode !== 'sleep') { toast(o.lock); talk(bossGuard(), pick(GUARD_LINES.boss), 2.4, true); return false; }
     completeStep(o, c);
     return true;
@@ -407,7 +434,8 @@ function completeStep(o, c) {
     burst(30, ox, oy, () => ({ kind: 'confetti', z: 60, vx: rnd(-2.5, 2.5), vy: rnd(-2.5, 2.5), vz: rnd(80, 220), g: 240, max: 2.2, col: pick(['#ff4a6a', '#ffd23f', '#4ad0ff', '#7fff7a', '#c07aff']), rot: rnd(0, 6), vr: rnd(-8, 8) }));
     if (o.kind === 'grill' && c) { c.fireT = 2; burst(24, ox, oy, () => ({ kind: 'fire', z: 24, vx: rnd(-1, 1), vy: rnd(-1, 1), vz: rnd(40, 120), size: rnd(8, 14), max: rnd(.6, 1.1) })); }
     if (o.opens) openGates(o.opens);
-    if (o.feast) feast(ox, oy);
+    if (o.feast) { feast(ox, oy); G.banterT = 0; banter('feast'); }
+    else if (!G.objs.every(x => x.done)) banter('step');
     refreshHud();
     if (G.objs.every(x => x.done)) {
         G.state = 'won';
@@ -451,17 +479,24 @@ function select(i) {
     refreshHud();
 }
 
+let lastTap = null;
 function tap(px, py) {
     const c = G.chars[G.sel];
     const [wx, wy] = toWorld(px, py);
-    if (G.targeting >= 0) { castAt(c, G.targeting, wx, wy); return; }
+    if (G.targeting >= 0) { if (G.plan) queueAction(c, G.targeting, wx, wy); else castAt(c, G.targeting, wx, wy); return; }
     const [hx, hy] = toWorld(px, py + 26);
     const hit = G.chars.findIndex(o => Math.hypot(o.x - hx, o.y - hy) < .9);
     if (hit >= 0) { select(hit); return; }
-    const ti = Math.floor(wx), tj = Math.floor(wy);
+    if (c.captured) { toast(c.name + ' è in cella sobria: avvicina un altro personaggio e premi E.'); return; }
+    const ti = Math.floor(wx), tj = Math.floor(wy), now = performance.now();
+    // doppio clic/tocco nello stesso punto = corsa (veloce ma rumorosa)
+    const dbl = lastTap && now - lastTap.t < 350 && Math.abs(lastTap.i - ti) <= 1 && Math.abs(lastTap.j - tj) <= 1;
+    lastTap = { t: now, i: ti, j: tj };
     c.want = tileAt(ti, tj) === 'O' ? true : null;
     c.route = bfs(Math.floor(c.x), Math.floor(c.y), ti, tj, c) || [];
-    G.marker = { x: ti + .5, y: tj + .5, t: 0, ok: c.route.length > 0 };
+    c.running = dbl && c.route.length > 0;
+    if (c.running && c.disguise > 0) toast('Attenzione: correndo il travestimento non regge, le guardie lo riconoscono!');
+    G.marker = { x: ti + .5, y: tj + .5, t: 0, ok: c.route.length > 0, run: c.running };
     sfx('click');
 }
 
@@ -479,7 +514,7 @@ function walkGuard(g, sp, dt) {
     if (!g.route.length) return;
     const [tx, ty] = g.route[0];
     turn(g, Math.atan2(ty - g.y, tx - g.x), dt);
-    follow(g, sp, dt);
+    follow(g, sp * (G.alarm > 0 ? 1.3 : 1) * DIFF[G.diff].gspeed, dt);
 }
 
 function updateGuard(g, dt) {
@@ -489,7 +524,7 @@ function updateGuard(g, dt) {
     if (g.mode === 'sleep') {
         g.timer -= dt;
         if (g.fxT <= 0) { g.fxT = .9; part({ kind: 'text', x: g.x, y: g.y, z: 30, vx: .3, vz: 22, txt: 'Z', col: '#fff', size: 14, max: 1.6 }); }
-        if (g.timer <= 0) { g.mode = 'patrol'; g.route = []; talk(g, pick(GUARD_LINES.wake)); }
+        if (g.timer <= 0) { g.mode = 'patrol'; g.route = []; g.discovered = false; talk(g, pick(GUARD_LINES.wake)); }
         return;
     }
     if (['drink', 'eat', 'look', 'laugh', 'stunned', 'flee'].includes(g.mode)) {
@@ -513,7 +548,10 @@ function updateGuard(g, dt) {
         return;
     }
     if (g.mode === 'goto') {
-        if (!g.route.length) { g.mode = g.after.mode; g.timer = g.after.dur; talk(g, g.after.msg); return; }
+        if (!g.route.length) {
+            if (g.after.wake != null) { const h = G.guards[g.after.wake]; if (h.mode === 'sleep') h.timer = Math.min(h.timer, .6); }
+            g.mode = g.after.mode; g.timer = g.after.dur; talk(g, g.after.msg); return;
+        }
         walkGuard(g, g.speed * 1.5, dt); g.moving = true;
         return;
     }
@@ -537,17 +575,22 @@ function updateGuard(g, dt) {
 function detect(dt) {
     for (const g of G.guards) {
         if (!awake(g)) { g.meter = Math.max(0, g.meter - dt); g.susp = false; g.spot = null; continue; }
-        let seen = 0, spot = null;
+        if (!g.boss && g.mode === 'patrol') spotColleague(g);
+        let seen = 0, spot = null, who = null;
+        const R = gRange(g), F = gFov(g);
         for (const c of G.chars) {
-            if (inSafe(c)) continue;
+            if (inSafe(c) || c.captured) continue;
             const dx = c.x - g.x, dy = c.y - g.y, d = Math.hypot(dx, dy);
-            if (d > g.range || (c.disguise > 0 && d > 2)) continue;
+            const masked = c.disguise > 0 && !c.running;
+            if (d > R || (masked && d > R * .5)) continue;
             const a = Math.atan2(Math.sin(Math.atan2(dy, dx) - g.dir), Math.cos(Math.atan2(dy, dx) - g.dir));
-            if (Math.abs(a) > g.fov / 2 && d > 1) continue;
+            if (Math.abs(a) > F / 2 && d > 1) continue;
             if (!los(g.x, g.y, c.x, c.y)) continue;
-            const rate = d < g.range * .45 ? 2.5 : .6 + (g.range - d) * .1;
-            if (rate > seen) { seen = rate; spot = [c.x, c.y]; }
+            let rate = (d < R * .45 ? 2.5 : .6 + (R - d) * .1) * DIFF[G.diff].detect;
+            if (masked) rate = .35 * DIFF[G.diff].detect;
+            if (rate > seen) { seen = rate; spot = [c.x, c.y]; who = c; }
         }
+        if (who) g.spotC = who;
         if (spot) g.spot = spot;
         g.meter = clamp(g.meter + (seen ? seen * dt : -.35 * dt), 0, 1);
         if (g.meter > .15 && !g.susp) {
@@ -561,7 +604,7 @@ function detect(dt) {
             part({ kind: 'text', x: g.x, y: g.y, z: 80, vz: 30, txt: '!', col: '#ff3a3a', size: 30, max: .9 });
         }
         if (g.meter < .3) g.alerted = false;
-        if (g.meter >= 1) { fail(g); return; }
+        if (g.meter >= 1) { if (g.spotC && !g.spotC.captured) capture(g.spotC, g); else g.meter = .5; if (G.state !== 'play') return; }
     }
 }
 
@@ -573,7 +616,9 @@ function fail(g) {
     setTimeout(() => {
         if (!G || G.state !== 'lost') return;
         screen('<div class="cut"><div class="pimg"><img src="' + portraitOf('guard') + '" alt=""></div><div class="pbub"><b>Ispettore Acqua</b><p>ALT! Controllo sobrietà!</p></div></div>' +
-            '<h2>Beccati!</h2><p>' + pick(FAIL_LINES) + '</p><button class="btn" onclick="begin(' + G.mi + ')">Riprova</button><button class="btn ghost" onclick="showTitle()">Menu</button>');
+            '<h2>Beccati tutti!</h2><p>' + pick(FAIL_LINES) + '</p><button class="btn" onclick="begin(' + G.mi + ')">Riprova</button>' +
+            (STORE.get('save' + G.mi, null) ? '<button class="btn" onclick="quickLoad(' + G.mi + ')">⟲ Carica salvataggio</button>' : '') +
+            '<button class="btn ghost" onclick="showTitle()">Menu</button>');
     }, 1600);
 }
 
@@ -593,6 +638,7 @@ function update(dt) {
 
     if (G.state === 'play') {
         G.chars.forEach((c, i) => {
+            if (c.captured) { c.moving = false; c.route = []; return; }
             c.cd = c.cd.map(v => Math.max(0, v - dt));
             c.disguise = Math.max(0, c.disguise - dt);
             c.fireT = Math.max(0, c.fireT - dt);
@@ -602,11 +648,16 @@ function update(dt) {
                 const l = G.chars[G.sel];
                 if (Math.hypot(l.x - c.x, l.y - c.y) > 2.4) c.route = bfs(Math.floor(c.x), Math.floor(c.y), Math.floor(l.x), Math.floor(l.y), c) || [];
             }
-            c.moving = !c.actKind && follow(c, c.id === 'alcan' ? 3.6 : 3.3, dt);
+            c.moving = !c.actKind && follow(c, (c.running ? 3.9 : 2.5) + (c.id === 'alcan' ? .3 : 0), dt);
+            if (!c.moving) c.running = false;
+            else if (c.running) {
+                c.noiseT -= dt;
+                if (c.noiseT <= 0) { c.noiseT = .8; lure(c.x, c.y, 3.5, 'look', 2.5, 'Chi corre là?'); }
+            }
             if (c.want && !c.route.length) { c.want = null; interact(c); }
             if (c.fireT > 0 && Math.random() < .5) part({ kind: 'fire', x: c.x + (c.flip ? -.25 : .25), y: c.y - .25, z: 30, vz: rnd(30, 60), size: rnd(4, 7), max: .5 });
             c.quipT -= dt;
-            if (c.quipT <= 0 && !c.moving && !c.say) { c.quipT = rnd(16, 30); talk(c, pick(c.quips), 3); }
+            if (c.quipT <= 0 && !c.moving && !c.say && G.banterT <= 0) { c.quipT = rnd(30, 55); talk(c, pick(c.quips), 3); }
         });
         G.guards.forEach(g => updateGuard(g, dt));
         for (const d of G.dyn) {
@@ -623,12 +674,16 @@ function update(dt) {
                 if (b.fx <= 0 && b.t > 1) { b.fx = b.kind === 'gas' ? .12 : .09; smokeAt(b.x, b.y, b.r * .8, b.kind === 'gas' ? '#9ad84a' : '#d8d8d8', b.kind === 'gas' && Math.random() < .15 ? '☠' : null); }
             }
             if (b.kind === 'gas') G.guards.forEach(g => {
-                if (g.mode !== 'sleep' && Math.hypot(g.x - b.x, g.y - b.y) < b.r && !g.immune.includes('sleep')) { sleepGuard(g, g.boss ? 10 : 8, pick(GUARD_LINES.gas)); g.hitT = .3; }
+                if (g.mode !== 'sleep' && Math.hypot(g.x - b.x, g.y - b.y) < b.r && !g.immune.includes('sleep')) {
+                    sleepGuard(g, g.boss ? 14 : 14, pick(GUARD_LINES.gas)); g.hitT = .3;
+                    b.hits++; G.stats.gasMax = Math.max(G.stats.gasMax, b.hits);
+                }
             });
         });
         G.baits = G.baits.filter(b => b.t > 0);
         checkSteps();
-        if (G.t > 4) detect(dt);
+        tickSystems(dt);
+        if (G.t > 4 && G.state === 'play') detect(dt);
     } else {
         G.chars.forEach(c => { if (c.actKind) { c.actT += dt; if (c.actT >= c.actDur) c.actKind = null; } });
     }
@@ -665,6 +720,7 @@ function update(dt) {
     document.querySelectorAll('.ch').forEach((e, i) => {
         const c = G.chars[i];
         e.querySelectorAll('.cd').forEach((b, k) => b.style.height = (c.cd[k] / c.ab[k].cd * 100) + '%');
+        e.querySelectorAll('.chg').forEach((b, k) => { const n = c.charges[k]; b.textContent = n < 0 ? '∞' : n; b.classList.toggle('zero', n === 0); });
     });
 }
 
@@ -795,6 +851,7 @@ function drawEntity(e) {
         drawChibi(e.look, poseOf(e, ts));
     }
     ctx.restore();
+    if (!isG && e.captured) drawCage(sx, sy, G.t);
 
     if (isG) {
         const top = sy - 80 * base;
@@ -897,7 +954,7 @@ function render() {
     }
     if (G.marker) {
         const k = G.marker.t / .7, [rx, ry] = ringR(.15 + k * .4);
-        ell(G.marker.x, G.marker.y, rx, ry, null, G.marker.ok ? `rgba(120,255,120,${1 - k})` : `rgba(255,80,80,${1 - k})`, 3);
+        ell(G.marker.x, G.marker.y, rx, ry, null, !G.marker.ok ? `rgba(255,80,80,${1 - k})` : G.marker.run ? `rgba(255,200,60,${1 - k})` : `rgba(120,255,120,${1 - k})`, 3);
     }
     drawSafe();
     G.guards.forEach(drawCone);
@@ -909,9 +966,6 @@ function render() {
         ell(c.x, c.y, rx, ry, 'rgba(255,255,255,.07)', '#fff'); ctx.restore();
         const [wx, wy] = toWorld(mouse[0], mouse[1]), d = Math.hypot(wx - c.x, wy - c.y), k = d > ab.range ? ab.range / d : 1;
         const tx = c.x + (wx - c.x) * k, ty = c.y + (wy - c.y) * k;
-        const rad = { estice: 2.3, unicorn: 1.9, muglo: 2.4, alcan: .6 }[c.id] || 1;
-        const [ax, ay] = ringR(rad);
-        ell(tx, ty, ax, ay, 'rgba(255,80,60,.25)', '#f55', 2);
         const [sx0, sy0] = iso(c.x, c.y), [sx1, sy1] = iso(tx, ty);
         ctx.save(); ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(sx0, sy0 - 30); ctx.quadraticCurveTo((sx0 + sx1) / 2, Math.min(sy0, sy1) - 90, sx1, sy1); ctx.stroke(); ctx.restore();
@@ -934,6 +988,7 @@ function render() {
     }));
     G.baits.forEach(b => list.push({ d: b.x + b.y, f: () => drawBait(b) }));
     G.proj.forEach(p => list.push({ d: p.x + p.y + .5, f: () => drawProj(p) }));
+    G.secrets.filter(s => !s.found).forEach(s => list.push({ d: s.x + s.y, f: () => drawSecret(s.x, s.y, G.t) }));
     (G.m.signs || []).forEach(s => list.push({ d: s.x + s.y, f: () => drawSign(s, Math.floor(G.t * STOP) / STOP) }));
     list.sort((a, b) => a.d - b.d).forEach(o => o.f());
     // Sagome visibili attraverso i muri
@@ -941,6 +996,8 @@ function render() {
     [...G.chars, ...G.guards].forEach(drawEntity);
     ctx.restore();
 
+    drawPlan();
+    drawPreview();
     G.parts.filter(p => p.kind !== 'pop').forEach(drawParticle);
     [...G.chars, ...G.guards].forEach(e => {
         if (!e.say) return;
@@ -949,6 +1006,12 @@ function render() {
     });
     G.parts.filter(p => p.kind === 'pop').forEach(drawParticle);
     ctx.restore();
+    if (G.alarm > 0) {
+        const a = .1 + .08 * Math.sin(G.t * 8);
+        const v = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * .3, cw / 2, ch / 2, Math.max(cw, ch) * .7);
+        v.addColorStop(0, 'rgba(255,0,0,0)'); v.addColorStop(1, `rgba(255,20,20,${a * 2.5})`);
+        ctx.fillStyle = v; ctx.fillRect(0, 0, cw, ch);
+    }
 }
 
 // ---------- minimappa ----------
@@ -983,18 +1046,18 @@ mini.addEventListener('pointerdown', e => {
 
 function drawCone(g) {
     if (!awake(g)) return;
-    const o = iso(g.x, g.y), far = [o], near = [o], n = 24, nr = g.range * .45;
+    const o = iso(g.x, g.y), far = [o], near = [o], n = 24, nr = gRange(g) * .45, fov = gFov(g);
     for (let k = 0; k <= n; k++) {
-        const a = g.dir - g.fov / 2 + g.fov * k / n, cx = Math.cos(a), cy = Math.sin(a);
+        const a = g.dir - fov / 2 + fov * k / n, cx = Math.cos(a), cy = Math.sin(a);
         let d = .3;
-        while (d < g.range && !opaque(g.x + cx * d, g.y + cy * d)) d += .2;
+        while (d < gRange(g) && !opaque(g.x + cx * d, g.y + cy * d)) d += .2;
         far.push(iso(g.x + cx * d, g.y + cy * d));
         const dn = Math.min(d, nr);
         near.push(iso(g.x + cx * dn, g.y + cy * dn));
     }
     const m = g.meter, col = m > .6 ? '255,60,40' : m > .15 ? '255,160,40' : '255,235,150';
     const pulse = m > .15 ? .1 * Math.sin(G.t * 12) : 0;
-    const lg = ctx.createRadialGradient(o[0], o[1], 4, o[0], o[1], g.range * 42);
+    const lg = ctx.createRadialGradient(o[0], o[1], 4, o[0], o[1], gRange(g) * 42);
     lg.addColorStop(0, `rgba(${col},${.55 + pulse})`); lg.addColorStop(.45, `rgba(${col},${.32 + pulse})`); lg.addColorStop(1, `rgba(${col},.06)`);
     ctx.save(); ctx.globalCompositeOperation = 'screen';
     poly(far, lg);
@@ -1019,13 +1082,21 @@ function hideScreen() { $('screen').hidden = true; }
 
 function showTitle() {
     G = null; $('hud').hidden = true;
-    const boxes = CHARS.map((c, i) => `<img src="${c.img}" alt="${c.name}" style="--i:${i - 2}">`).join('');
+    const boxes = CHARS.map((c, i) => `<img src="${c.box}" alt="${c.name}" style="--i:${i - 2}">`).join('');
     screen('<div class="boxes">' + boxes + '</div>' +
         '<h1 class="logo">E-TEAM<small>Operazione Sobrietà Zero</small></h1>' +
         '<p>Un ministro astemio ha messo al bando ogni bevanda alcolica. Cinque action hero da collezione, dieci abilità discutibili, zero intenzione di restare a secco.</p>' +
         '<p class="warn">Gioco comico per adulti (18+): alcol e umorismo da caserma. Nessuna violenza vera: le guardie si addormentano, ridono o scappano.</p>' +
-        '<p class="small">Click/tocco: muovi · 1-5 o Tab: cambia personaggio · Q / X: abilità · E: interagisci · F: segui · trascina/WASD: vista · rotella: zoom · M: audio · R: riavvia</p>' +
-        MISSIONS.map((m, i) => '<button class="btn" onclick="showBrief(' + i + ')">' + m.name + '</button>').join('<br>'));
+        '<p class="small">Click/tocco: muovi · 1-5: personaggio · Q/X: abilità · E: interagisci · H: indizio · P: pianifica · Spazio: via! · F5/F9: salva/carica · M: audio</p>' +
+        '<div class="diff">' + Object.entries(DIFF).map(([k, d]) => `<button class="btn ${curDiff() === k ? '' : 'ghost'}" onclick="setDiff('${k}')" title="${d.desc}">${d.icon} ${d.name}</button>`).join('') +
+        '<small>' + DIFF[curDiff()].desc + '</small></div>' +
+        MISSIONS.map((m, i) => {
+            const b = STORE.get('best', {})[i];
+            return '<button class="btn" onclick="showBrief(' + i + ')">' + m.name + (b ? ' <span class="best g' + b + '">' + b + '</span>' : '') + '</button>';
+        }).join('<br>') +
+        '<div class="extra"><button class="btn ghost" onclick="showManual()">📖 Manuale</button><button class="btn ghost" onclick="showTutorial()">❓ Guida rapida</button>' +
+        '<button class="btn ghost" onclick="showMedals()">🏅 Medaglie (' + Object.keys(STORE.get('medals', {})).length + '/' + MEDALS.length + ')</button>' +
+        '<button class="btn ghost" onclick="showPapere()">🎞 Papere (' + STORE.get('papere', []).length + '/' + PAPERE.length + ')</button></div>');
 }
 
 function panelImg(p) {
@@ -1066,37 +1137,45 @@ function showBrief(i) {
     auInit();
     cutscene(MISSIONS[i].intro, () => {
         const m = MISSIONS[i];
-        screen('<h2>' + m.name + '</h2><p>Ognuno ha un compito che solo lui può svolgere. Alcuni compiti si sbloccano solo dopo altri.</p><ul class="objl">' +
-            m.steps.map(o => '<li><b>' + (o.who ? charName(o.who) : 'Chiunque') + '</b>: ' + o.text + '</li>').join('') + '</ul>' +
-            '<p class="small">Suggerimento: ' + m.hint + '</p>' +
-            '<button class="btn" onclick="begin(' + i + ')">Inizia missione</button><button class="btn ghost" onclick="showTitle()">Indietro</button>');
+        const save = STORE.get('save' + i, null);
+        screen('<h2>' + m.name + '</h2><p>Ogni obiettivo richiede il personaggio giusto, e alcuni si sbloccano solo dopo altri. Sta a voi capire chi fa cosa.</p><ul class="objl">' +
+            m.steps.filter(o => !(o.after || []).length).map(o => '<li>' + o.text + '</li>').join('') + '<li><i>...e altri obiettivi da scoprire</i></li></ul>' +
+            '<p class="small">Bloccati? Premete H per un indizio (costa punti nella pagella). Nascoste nella mappa ci sono 3 bottiglie segrete.</p>' +
+            '<button class="btn" onclick="startMission(' + i + ')">Inizia missione</button>' +
+            (save ? '<button class="btn" onclick="quickLoad(' + i + ')">⟲ Continua dal salvataggio</button>' : '') +
+            '<button class="btn ghost" onclick="showTitle()">Indietro</button>');
     });
 }
 
-function begin(i) {
+function begin(i, quiet) {
     auInit();
     loadMission(i); hideScreen();
     $('hud').hidden = false;
     $('mtitle').textContent = MISSIONS[i].name;
     $('team').innerHTML = CHARS.map((c, k) => `<button class="ch" data-i="${k}" title="${c.role}: ${c.ab.map(a => a.name).join(' / ')}"><i>${k + 1}</i>` +
-        `<img src="${SPR[c.id + '-portrait'] ? spritePath(c.id + '-portrait') : c.img}" alt="${c.name}"><span>${c.name}</span><div class="cd q"></div><div class="cd x"></div></button>`).join('');
+        `<img src="${SPR[c.id + '-portrait'] ? spritePath(c.id + '-portrait') : c.img}" alt="${c.name}"><span>${c.name}</span><div class="cd q"></div><div class="cd x"></div><b class="chg q"></b><b class="chg x"></b></button>`).join('');
     $('team').querySelectorAll('.ch').forEach(b => b.onclick = () => select(+b.dataset.i));
     refreshHud();
-    toast('Partite dalla ZONA SICURA verde: lì nessuno vi vede. ' + MISSIONS[i].hint, 6000);
+    if (!quiet) toast('Partite dalla ZONA SICURA verde: lì nessuno vi vede. Premete H se vi serve un indizio.', 6000);
 }
 
 function refreshHud() {
     if (!G) return;
     $('objs').innerHTML = G.objs.map(o => {
         const st = o.done ? 'done' : stepReady(o) ? 'ready' : 'locked';
-        const who = o.who ? `<b>${charName(o.who)}</b>` : '<b>Chiunque</b>';
-        return `<li class="${st}">${o.done ? '✔' : st === 'locked' ? '🔒' : '▶'} ${who}: ${o.text}</li>`;
+        if (st === 'locked') return '<li class="locked">🔒 <i>Obiettivo da sbloccare</i></li>';
+        const who = o.who ? (o.done || o.revealed ? charName(o.who) : '???') : 'Chiunque';
+        return `<li class="${st}">${o.done ? '✔' : '▶'} <b>${who}</b>: ${o.text}${!o.done && o.hintShown ? `<em>💡 ${o.hint}</em>` : ''}</li>`;
     }).join('');
+    $('bPlan').classList.toggle('on', G.plan);
+    document.querySelectorAll('.ch').forEach((b, i) => b.classList.toggle('jail', !!G.chars[i].captured));
     document.querySelectorAll('.ch').forEach((b, i) => b.classList.toggle('sel', i === G.sel));
     const c = G.chars[G.sel];
     ['bAbil', 'bAbil2'].forEach((id, k) => {
         const ab = c.ab[k];
-        $(id).innerHTML = `<kbd>${k ? 'X' : 'Q'}</kbd> ${ab.icon} ${ab.name}`;
+        const n = c.charges[k];
+        $(id).innerHTML = `<kbd>${k ? 'X' : 'Q'}</kbd> ${ab.icon} ${ab.name} <small class="nch">${n < 0 ? '∞' : '×' + n}</small>`;
+        $(id).classList.toggle('empty', n === 0);
         $(id).title = ab.desc;
         $(id).classList.toggle('on', G.targeting === k);
     });
@@ -1108,7 +1187,7 @@ function showOutro() {
     if (!G || G.state !== 'won') return;
     const mi = G.mi, next = mi + 1 < MISSIONS.length;
     cutscene(MISSIONS[mi].outro, () => {
-        screen('<h2>Missione compiuta! 🍻</h2><p>' + G.objs[G.objs.length - 1].msg + '</p>' +
+        screen('<h2>Missione compiuta! 🍻</h2><p>' + G.objs[G.objs.length - 1].msg + '</p>' + reportCard() +
             (next ? '<button class="btn" onclick="showBrief(' + (mi + 1) + ')">Prossima missione</button>'
                 : '<p><b>L\'Italia è salva. L\'E-TEAM brinda. Salute!</b></p>') +
             '<button class="btn ghost" onclick="showTitle()">Menu</button>');
@@ -1142,7 +1221,7 @@ addEventListener('keydown', e => {
     else if (e.key === 'e' || e.key === 'E') interact(G.chars[G.sel]);
     else if (e.key === 'f' || e.key === 'F') { G.follow = !G.follow; refreshHud(); }
     else if (e.key === 'r' || e.key === 'R') begin(G.mi);
-    else if (e.key === 'Escape') { G.targeting = -1; refreshHud(); }
+    else if (e.key === 'Escape') { G.targeting = -1; if (G.plan) togglePlan(); refreshHud(); }
 });
 addEventListener('keyup', e => { keys[e.key] = false; });
 $('bAbil').onclick = () => startAbility(0);
@@ -1163,6 +1242,3 @@ function loop(ts) {
     } else { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = '#111'; ctx.fillRect(0, 0, cw, ch); }
     requestAnimationFrame(loop);
 }
-loadSprites();
-showTitle();
-requestAnimationFrame(loop);

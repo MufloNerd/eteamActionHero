@@ -192,7 +192,8 @@ const PAT = {};
 function pattern(kind, base, m) {
     const src = SPR['tex-' + kind], key = kind + base + m + (src ? '*' : '');
     if (PAT[key]) return PAT[key];
-    const img = src || texture(kind, base), k = src ? 64 / (src.width || src.naturalWidth) : 1;
+    const TEX_SCALE = { brick: 3, canvas: 2.5, wood: 2, paving: 2, grass: 2, asphalt: 2, concrete: 2, carpet: 2 };
+    const img = src || texture(kind, base), k = src ? 64 / (src.width || src.naturalWidth) * (TEX_SCALE[kind] || 1) : 1;
     const M = m === 'floor' ? [.5, .25, -.5, .25] : m === 'L' ? [.5, .25, 0, .66] : m === 'R' ? [.5, -.25, 0, .66] : [1, 0, 0, 1];
     const p = X.createPattern(img, 'repeat');
     p.setTransform(new DOMMatrix([M[0] * k, M[1] * k, M[2] * k, M[3] * k, 0, 0]));
@@ -559,6 +560,13 @@ function drawParticle(p) {
             X.closePath(); X.shadowColor = 'rgba(0,0,0,.4)'; X.shadowOffsetX = 1.5; X.shadowOffsetY = 2; X.fillStyle = p.col || '#ffd84a'; X.fill();
             break;
         }
+        case 'ring': { // onda sonora: raggio in caselle
+            const r = p.size * (.25 + .75 * k);
+            X.globalAlpha = (1 - k) * .8;
+            X.beginPath(); X.ellipse(0, 0, r * 45, r * 22.5, 0, 0, 7);
+            X.strokeStyle = p.col; X.lineWidth = 3 - k * 2; X.setLineDash([10, 7]); X.stroke(); X.setLineDash([]);
+            break;
+        }
         case 'text': case 'pop': {
             const pop = p.kind === 'pop';
             const s = pop ? (k < .12 ? k / .12 * 1.2 : k < .22 ? 1.2 - (k - .12) * 2 : 1) : 1;
@@ -660,7 +668,14 @@ function drawProp3D(kind, i, j) {
     const [sx, sy] = iso(i + .5, j + .5);
     switch (kind) {
         case 'car': {
-            if (drawSpriteAt('prop-car', sx, sy + 6, 46)) return;
+            if (SPR['prop-car']) {
+                X.save();
+                const hues = [0, 140, 200, 320, 25, 260];
+                X.filter = `hue-rotate(${hues[Math.floor(hash(i, j) * hues.length)]}deg)`;
+                drawSpriteAt('prop-car', sx, sy + 6, 46);
+                X.restore();
+                return;
+            }
             X.beginPath(); X.ellipse(sx + 3, sy + 3, 26, 11, 0, 0, 7); X.fillStyle = 'rgba(0,0,0,.28)'; X.fill();
             const cols = ['#b8231c', '#1f4fb8', '#e0a01e', '#2a8a48', '#5a2ab0', '#e8e8e8'], c = cols[Math.floor(hash(i, j) * cols.length)];
             [[i + .25, j + .9], [i + .8, j + .9], [i + .9, j + .3]].forEach(([x, y]) => { const [a, b] = iso(x, y); sph(a, b - 3, 4, 3.6, '#222'); sph(a, b - 3, 1.6, 1.4, '#ccc'); });
@@ -700,7 +715,7 @@ function drawProp3D(kind, i, j) {
 
 function drawBarricade(i, j) {
     const [sx, sy] = iso(i + .5, j + .5);
-    if (drawSpriteAt('prop-barricade', sx, sy + 8, 56)) return;
+    if (drawSpriteAt('prop-barricade', sx, sy + 10, 66)) return;
     box(i, j + .3, i + 1, j + .7, 30, pattern('wood', '#a8763f', 'floor'), '#8a5a2b', '#6e4520');
     X.save();
     X.translate(sx - 8, sy - 14); X.rotate(-.12);
@@ -729,8 +744,8 @@ function drawObjective(o, i, j, t, theme) {
     const [sx, sy] = iso(i + .5, j + .5), done = o && o.done;
     switch (o ? o.kind : theme.obj) {
         case 'tap': {
+            if (drawSpriteAt('prop-beer-tap', sx, sy + 10, 62)) break;
             box(i - .4, j + .1, i + 1.4, j + .9, 22, pattern('wood', '#7a4a28', 'floor'), '#5f381d', '#4a2c16');
-            if (drawSpriteAt('prop-beer-tap', sx, sy - 18, 44)) break;
             const g = X.createLinearGradient(sx - 5, 0, sx + 5, 0); g.addColorStop(0, '#8a6a1a'); g.addColorStop(.4, '#fff0a0'); g.addColorStop(1, '#7a5a10');
             rr(sx - 5, sy - 52, 10, 30, 3); X.fillStyle = g; X.fill();
             X.save(); X.translate(sx, sy - 52); X.rotate(done ? .6 : -.2); limb(0, 0, 0, -15, 4, done ? '#2a8a48' : '#b8231c'); X.restore();
@@ -980,4 +995,32 @@ function drawGate(i, j, t) {
     limb(a[0], a[1] - 10, b[0], b[1] - 10, 2.4, '#3a3f46');
     const m = iso(i + .5, j + .5);
     sph(m[0], m[1] - 22, 3.2, 3.8, '#c8a040');
+}
+
+// ---------- cella sobria e bottiglie segrete ----------
+function drawCage(sx, sy, t) {
+    const R = 17;
+    X.save(); X.translate(sx, sy);
+    X.beginPath(); X.ellipse(0, 0, R, R / 2, 0, 0, 7); X.fillStyle = 'rgba(90,180,255,.18)'; X.fill();
+    for (let k = 0; k < 9; k++) {
+        const a = Math.PI * (k / 8), x = Math.cos(a) * R, y = Math.sin(a) * R / 2;
+        limb(x, y, x, y - 70, 2, '#5a6068');
+    }
+    X.beginPath(); X.ellipse(0, -70, R, R / 2, 0, 0, 7); X.strokeStyle = '#5a6068'; X.lineWidth = 3; X.stroke();
+    X.beginPath(); X.ellipse(0, 0, R, R / 2, 0, 0, Math.PI); X.stroke();
+    X.fillStyle = '#7ec0ee'; X.font = 'bold 9px sans-serif'; X.textAlign = 'center';
+    X.fillText('CELLA SOBRIA', 0, -78 - Math.sin(t * 3) * 2);
+    X.restore();
+}
+
+function drawSecret(x, y, t) {
+    const [sx, sy] = iso(x, y), bob = Math.sin(t * 3 + x) * 2;
+    X.beginPath(); X.ellipse(sx, sy, 6, 2.5, 0, 0, 7); X.fillStyle = 'rgba(0,0,0,.25)'; X.fill();
+    X.save(); X.translate(sx, sy - 2 + bob); X.scale(1.1, 1.1); drawProp('whisky', { t }); X.restore();
+    if (Math.sin(t * 2.3 + y) > .7) {
+        X.save(); X.globalCompositeOperation = 'lighter'; X.translate(sx + 3, sy - 14 + bob); X.rotate(t * 2);
+        X.fillStyle = 'rgba(255,240,180,.9)';
+        X.beginPath(); for (let i = 0; i < 8; i++) { const r = i % 2 ? 1.2 : 5, a = i * Math.PI / 4; X.lineTo(Math.cos(a) * r, Math.sin(a) * r); } X.fill();
+        X.restore();
+    }
 }

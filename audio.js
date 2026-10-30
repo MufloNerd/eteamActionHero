@@ -83,16 +83,29 @@ const BASS = [40, 40, 47, 40, 43, 40, 42, 41, 40, 40, 47, 40, 46, 45, 43, 42];
 const LEAD = [64, 0, 67, 0, 71, 70, 0, 67, 64, 0, 0, 0, 62, 63, 64, 0, 64, 0, 67, 0, 72, 71, 0, 67, 66, 0, 64, 0, 0, 0, 0, 0];
 const midi = n => 440 * Math.pow(2, (n - 69) / 12);
 
+// Umore della musica: 'calm' | 'tense' | 'alarm'
+AU.mood = 'calm';
+function setMood(m) {
+    if (AU.mood === m) return;
+    if (m === 'alarm' && AU.ac) tone(880, .5, { type: 'sawtooth', vol: .12, to: 440, out: AU.mus });
+    AU.mood = m;
+}
+
 function musicTick() {
     if (!AU.ac || AU.ac.state !== 'running') return;
-    const spb = 60 / 138 / 2;
+    const bpm = { calm: 138, tense: 150, alarm: 172 }[AU.mood], spb = 60 / bpm / 2;
     while (AU.next < AU.ac.currentTime + .2) {
-        const s = AU.step, at = AU.next - AU.ac.currentTime;
-        tone(midi(BASS[s % 16]), spb * .9, { type: 'triangle', vol: .5, at, out: AU.mus });
+        const s = AU.step, at = AU.next - AU.ac.currentTime, mood = AU.mood;
+        const shift = mood === 'alarm' ? 1 : 0;
+        tone(midi(BASS[s % 16] + shift), spb * .9, { type: 'triangle', vol: .5, at, out: AU.mus });
+        if (mood !== 'calm' && s % 2 === 1) tone(midi(BASS[s % 16] + 12 + shift), spb * .5, { type: 'triangle', vol: .25, at, out: AU.mus });
         const l = LEAD[s % 32];
-        if (l && (s >> 5) % 2 === 1) tone(midi(l), spb * 1.6, { type: 'square', vol: .16, at, out: AU.mus });
-        if (s % 2 === 0) noise(.04, { vol: .12, f: 7000, kind: 'highpass', at, out: AU.mus });
-        if (s % 8 === 4) noise(.1, { vol: .2, f: 1800, kind: 'bandpass', at, out: AU.mus });
+        if (mood === 'calm' && l && (s >> 5) % 2 === 1) tone(midi(l), spb * 1.6, { type: 'square', vol: .16, at, out: AU.mus });
+        if (mood === 'tense' && s % 4 === 0) tone(midi(76 + (s % 8 ? 1 : 0)), spb * .6, { type: 'square', vol: .07, at, out: AU.mus });
+        if (mood === 'alarm' && s % 4 === 0) tone(midi(s % 8 ? 79 : 84), spb * 1.8, { type: 'sawtooth', vol: .09, at, out: AU.mus });
+        if (s % 2 === 0 || mood !== 'calm') noise(.04, { vol: mood === 'calm' ? .12 : .09, f: 7000, kind: 'highpass', at, out: AU.mus });
+        if (s % 8 === 4 || (mood === 'alarm' && s % 4 === 2)) noise(.1, { vol: .2, f: 1800, kind: 'bandpass', at, out: AU.mus });
+        if (mood !== 'calm' && s % 8 === 0) tone(60, .25, { type: 'sine', vol: .45, to: 35, at, out: AU.mus });
         AU.step++; AU.next += spb;
     }
 }
