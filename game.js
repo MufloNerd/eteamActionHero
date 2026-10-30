@@ -1018,7 +1018,7 @@ function render() {
 const mini = $('mini'), mctx = mini.getContext('2d');
 let miniK = 1, miniOX = 0;
 function drawMini() {
-    const MW = 190, k = MW / ((G.W + G.H) * 32), MH = Math.ceil((G.W + G.H) * 16 * k) + 8;
+    const MW = innerWidth <= 700 ? 120 : 160, k = MW / ((G.W + G.H) * 32), MH = Math.ceil((G.W + G.H) * 16 * k) + 8;
     if (mini.width !== MW * dpr || mini.height !== MH * dpr) { mini.width = MW * dpr; mini.height = MH * dpr; mini.style.width = MW + 'px'; mini.style.height = MH + 'px'; }
     miniK = k; miniOX = G.H * 32 * k;
     const c = mctx;
@@ -1174,13 +1174,15 @@ function refreshHud() {
     ['bAbil', 'bAbil2'].forEach((id, k) => {
         const ab = c.ab[k];
         const n = c.charges[k];
-        $(id).innerHTML = `<kbd>${k ? 'X' : 'Q'}</kbd> ${ab.icon} ${ab.name} <small class="nch">${n < 0 ? '∞' : '×' + n}</small>`;
+        $(id).innerHTML = `<span class="ico">${ab.icon}</span><span class="lbl">${ab.name}</span><kbd>${k ? 'X' : 'Q'}</kbd><small class="nch">${n < 0 ? '∞' : n}</small>`;
         $(id).classList.toggle('empty', n === 0);
         $(id).title = ab.desc;
         $(id).classList.toggle('on', G.targeting === k);
     });
-    $('bFollow').textContent = 'Segui: ' + (G.follow ? 'SÌ' : 'NO') + ' (F)';
-    $('bMute').textContent = AU.on ? '🔊 Audio (M)' : '🔇 Audio (M)';
+    $('bFollow').innerHTML = (G.follow ? '👣 Seguono: SÌ' : '👣 Seguono: NO') + ' <kbd>F</kbd>';
+    $('bMute').innerHTML = (AU.on ? '🔊 Audio: SÌ' : '🔇 Audio: NO') + ' <kbd>M</kbd>';
+    $('bMap').textContent = mapOn ? '🗺 Minimappa: SÌ' : '🗺 Minimappa: NO';
+    $('objCount').textContent = G.objs.filter(o => o.done).length + '/' + G.objs.length;
 }
 
 function showOutro() {

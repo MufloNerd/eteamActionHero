@@ -396,6 +396,25 @@ function quickLoad(mi) {
 }
 
 // ---------- comandi aggiuntivi ----------
+// ---------- HUD compatto ----------
+let mapOn = innerWidth > 700;
+const small = () => innerWidth <= 700 || innerHeight <= 480;
+function hudLayout() {
+    $('top').classList.toggle('open', STORE.get('objOpen', !small()));
+    document.body.classList.toggle('nomap', !mapOn);
+}
+$('objToggle').onclick = () => { const o = !$('top').classList.contains('open'); $('top').classList.toggle('open', o); STORE.set('objOpen', o); };
+$('bMenu').onclick = e => { e.stopPropagation(); $('menu').hidden = !$('menu').hidden; $('bMenu').classList.toggle('on', !$('menu').hidden); };
+$('menu').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (b && !['bMute', 'bFollow', 'bMap'].includes(b.id)) { $('menu').hidden = true; $('bMenu').classList.remove('on'); }
+});
+$('bMap').onclick = () => { mapOn = !mapOn; hudLayout(); refreshHud(); };
+$('bQuit').onclick = () => { if (confirm('Tornare al menu principale? I progressi non salvati andranno persi.')) showTitle(); };
+addEventListener('pointerdown', e => { if (!e.target.closest('#menu, #bMenu')) { $('menu').hidden = true; $('bMenu').classList.remove('on'); } });
+addEventListener('resize', hudLayout);
+hudLayout();
+
 $('bHint').onclick = useHint;
 $('bPlan').onclick = togglePlan;
 $('bGo').onclick = runPlan;
