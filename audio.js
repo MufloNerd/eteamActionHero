@@ -74,6 +74,7 @@ const SFX = {
     objective: () => [523, 659, 784, 1047].forEach((f, k) => tone(f, .18, { vol: .18, at: k * .09 })),
     win: () => [523, 659, 784, 659, 784, 1047].forEach((f, k) => tone(f, .25, { vol: .2, at: k * .14 })),
     lose: () => [392, 370, 349, 330].forEach((f, k) => tone(f, k === 3 ? 1 : .35, { type: 'sawtooth', vol: .18, at: k * .38, vib: k === 3 ? 6 : 0 })),
+    thunder: () => { noise(2.4, { vol: .8, f: 500, to: 50 }); tone(48, 1.8, { type: 'sine', vol: .5, to: 30 }); },
     talk: () => tone(300 + Math.random() * 200, .05, { type: 'square', vol: .06 }),
 };
 function sfx(name, ...a) { try { SFX[name] && SFX[name](...a); } catch (e) { /* audio non disponibile */ } }
@@ -146,6 +147,7 @@ const INST = {
     stab: (notes, d, at, v = 1) => notes.forEach(n => voice(midi(n), d, at, { type: 'square', vol: .045 * v, lp: 1700, att: .005 })),
     kick: (at, v = 1) => tone(110, .22, { type: 'sine', vol: .5 * v, to: 42, at, out: AU.mus }),
     snare: (at, v = 1) => { noise(.11, { vol: .28 * v, f: 2200, kind: 'bandpass', q: .8, at, out: AU.mus }); tone(190, .06, { type: 'triangle', vol: .12 * v, at, out: AU.mus }); },
+    organ: (notes, d, at, v = 1) => notes.forEach(n => voice(midi(n - 12), d, at, { type: 'square', vol: .03 * v, lp: 1200, vib: 5.5, vibD: .004, att: .04 })),
     crash: (at, v = 1) => noise(1.1, { vol: .16 * v, f: 6000, kind: 'highpass', at, out: AU.mus }),
 };
 
@@ -159,6 +161,15 @@ const GAGS = [
     at => [0, .11, .22].forEach(d => voice(800, .08, at + d, { type: 'square', vol: .06, bp: 800, q: 6, lp: 4000, att: .002 })), // campanaccio
 ];
 
+// Versione di Halloween: tonalità minore, organo e versi spettrali
+const SPOOKY_GAGS = [
+    at => voice(420, 1.1, at, { type: 'sine', vol: .13, lp: 6000, vib: 7, vibD: .03, to: 760 }),                 // theremin
+    at => voice(260, 1.4, at, { type: 'sawtooth', vol: .12, lp: 900, vib: 4, vibD: .05, to: 520, att: .3 }),    // ululato
+    at => [0, .14].forEach(d => voice(1400, .1, at + d, { type: 'square', vol: .05, bp: 1400, q: 8, att: .002 })),// ossa che sbattono
+    at => voice(140, .9, at, { type: 'sawtooth', vol: .14, lp: 500, vib: 3, vibD: .08, to: 90, att: .1 }),       // "BUUU"
+];
+const spook = n => AU.spooky && [4, 9, 11].includes(((n % 12) + 12) % 12) ? n - 1 : n;
+AU.spooky = false;
 AU.mood = 'calm';
 AU.bpm = 112;
 function setMood(m) {
@@ -170,12 +181,12 @@ function setMood(m) {
 
 function musicTick() {
     if (!AU.ac || AU.ac.state !== 'running') return;
-    const target = { calm: 108, tense: 124, alarm: 148 }[AU.mood];
+    const target = { calm: 108, tense: 124, alarm: 148 }[AU.mood] - (AU.spooky ? 10 : 0);
     while (AU.next < AU.ac.currentTime + .2) {
         AU.bpm += (target - AU.bpm) * .08;
         const spb = 60 / AU.bpm / 4, st = AU.step, s = st % 16, bar = SONG[Math.floor(st / 16) % SONG.length];
         const at = Math.max(0, AU.next - AU.ac.currentTime), mood = AU.mood, key = mood === 'alarm' ? 2 : 0;
-        const [root, chord] = CHORDS[bar.ch], ch = chord.map(n => n + key);
+        const [root, chord] = CHORDS[bar.ch], ch = chord.map(n => spook(n + key));
         // Batteria
         if (s === 0 || s === 8) INST.kick(at, mood === 'calm' ? .8 : 1);
         if (mood === 'calm') { if (s === 4 || s === 12) INST.snare(at, .5); if (s === 14 && st % 32 === 30) INST.snare(at, .3); }
@@ -185,17 +196,18 @@ function musicTick() {
         if (s === 0) INST.tuba(root + key, spb * 3.2, at);
         if (s === 8) INST.tuba(root + key + 7 - 12 * (root + 7 > 48 ? 1 : 0), spb * 3.2, at);
         if (s === 4 || s === 12) INST.stab(ch, spb * 1.2, at, mood === 'calm' ? .6 : 1);
+        if (AU.spooky && s === 0) INST.organ(ch, spb * 15, at, mood === 'calm' ? 1 : .7);
         if (mood === 'alarm' && (s === 6 || s === 14)) INST.stab(ch, spb * .8, at, .7);
         // Melodia
         const n = bar.at[s];
         if (n) {
-            const [note, len] = n, d = len * spb * .92, nn = note + key;
+            const [note, len] = n, d = len * spb * .92, nn = spook(note + key);
             if (mood === 'calm') INST.fife(nn, d, at, .9);
             else if (mood === 'tense') INST.kazoo(nn, d, at);
             else { INST.kazoo(nn, d, at, .9); INST.bugle(nn - 12, d, at, .9); }
         }
         // Gag di fine frase
-        if (bar.last && s === 12 && mood !== 'alarm' && Math.random() < .75) pick(GAGS)(at);
+        if (bar.last && s === 12 && mood !== 'alarm' && Math.random() < .75) pick(AU.spooky && Math.random() < .7 ? SPOOKY_GAGS : GAGS)(at);
         AU.step++; AU.next += spb;
     }
 }

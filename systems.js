@@ -18,6 +18,8 @@ function setDiff(d) { STORE.set('diff', d); showTitle(); }
 
 function initSystems(m) {
     G.diff = curDiff();
+    G.flash = 0; G.boltT = null;
+    AU.spooky = !!m.theme.night;
     G.chars.forEach(c => { c.charges = c.ab.map(a => DIFF[G.diff].charges(a.charges)); c.running = false; c.noiseT = 0; });
     G.alarm = 0;
     G.stats = { captures: 0, alarms: 0, hints: 0, knocked: 0, gasMax: 0, jokeMax: 0, punches: 0, fled: 0, wowMax: 0, secrets: 0, syncMax: 0 };
@@ -71,13 +73,23 @@ function idlePair() {
     later(3.1, () => talk(G.chars.find(c => c.id === b), lb, 3.2));
 }
 
+// ---------- minacce del boss ----------
+function threaten(g, c, force) {
+    const list = g.threats[c.id];
+    if (!list || (!force && g.say && g.say.t < 1.5)) return;
+    talk(g, pick(list), 3.6, true);
+    sfx('alert');
+    if (!force && Math.random() < .6) { G.banterT = 0; later(2.6, () => banter('threat', [c.x, c.y])); }
+}
+
 // ---------- cattura e liberazione ----------
 function capture(c, g) {
     c.captured = true; c.route = []; c.want = null; c.disguise = 0; c.actKind = null;
     G.stats.captures++;
     g.meter = 0; g.susp = false; g.spot = null; g.alerted = false; g.route = [];
     g.mode = 'look'; g.timer = 4;
-    talk(g, pick(['Preso! In cella sobria!', 'Tu vieni con me. Camomilla per un mese.', 'ALT! Controllo sobrietà!']), 2.6, true);
+    if (g.threats) threaten(g, c, true);
+    else talk(g, pick(['Preso! In cella sobria!', 'Tu vieni con me. Camomilla per un mese.', 'ALT! Controllo sobrietà!']), 2.6, true);
     pop(c.x, c.y, 'BECCATO!', '#ff3a3a', 38);
     shake(6); sfx('alert');
     raiseAlarm(c.x, c.y);
@@ -100,14 +112,14 @@ function freeChar(c) {
 }
 
 // ---------- allarme ----------
-const gRange = g => g.range + DIFF[G.diff].range + (G.alarm > 0 ? 1.5 : 0);
+const gRange = g => g.range + DIFF[G.diff].range + (G.alarm > 0 ? 1.5 : 0) + ((G.flash || 0) > .3 ? 2 : 0);
 const gFov = g => g.fov * (G.alarm > 0 ? 1.25 : 1);
 
-function raiseAlarm(x, y) {
+function raiseAlarm(x, y, scripted) {
     const was = G.alarm > 0;
     G.alarm = DIFF[G.diff].alarm;
     if (was) return;
-    G.stats.alarms++;
+    if (!scripted) G.stats.alarms++;
     sfx('whistle');
     toast('🚨 ALLARME! Per ' + G.alarm + ' secondi le guardie vedono più lontano e si muovono più in fretta.', 3500);
     banter('alarm');
@@ -488,7 +500,9 @@ ${c.ab.map((a, k) => `<div class="mab"><b>${k ? 'X' : 'Q'} · ${a.icon} ${a.name
 <div class="menemy"><b>🍖 Ispettore Goloso</b> <small>(Missione 1)</small><p>Non si muove dal suo posto e non dorme, non ride, non si spaventa. Ha un solo punto debole: il profumo della griglia di Muglo.</p></div>
 <div class="menemy"><b>☕ Ispettori al caffè</b> <small>(Missione 2)</small><p>Bevono solo caffè: immuni a sonno, pugni e travestimenti. Qualcuno però dovrebbe farli ridere...</p></div>
 <div class="menemy"><b>🛎️ Receptionist e Organizzatori</b><p>Sorvegliano le scrivanie dove si negozia: lasciano avvicinare solo chi sembra un professionista.</p></div>
-<div class="menemy"><b>🎩 Ministro Sobrio Astemi</b> <small>(Missione 3)</small><p>Vede lontanissimo e non lascia mai il suo tendone. I pugni lo stordiscono solo per poco, ma una pozione ben piazzata lo fa russare a lungo. Le sue carte si possono timbrare solo mentre dorme.</p></div>`;
+<div class="menemy"><b>🎩 Ministro Sobrio Astemi</b> <small>(Missione 3)</small><p>Vede lontanissimo e non lascia mai il suo tendone. I pugni lo stordiscono solo per poco, ma una pozione ben piazzata lo fa russare a lungo. Le sue carte si possono timbrare solo mentre dorme.</p></div>
+<div class="menemy"><b>💀 Scheletri di guardia</b> <small>(🎃 Halloween)</small><p>Non dormono, non sentono rumori, non hanno stomaco né invidia: pozioni, gas, whisky e "Fuori misura" non funzionano. Però crollano con pugni e dinamite, scappano dal fuoco e hanno l'osso del solletico.</p></div>
+<div class="menemy"><b>👑 Simon Storm</b> <small>(boss di 🎃 Halloween)</small><p>L'acerrimo nemico, signore di Mount Hawk e delle sue olive. Vede lontanissimo, è immune a quasi tutto e quando ti scopre ti minaccia con la raccolta. Ha un solo punto debole: è un ghiottone.</p></div>`;
     if (tab === 'punteggio') body = `
 <h3>📋 Pagella</h3><p>A fine missione ricevi un voto da S a D. Si parte da 100 punti (Facile −15, Commandos +10):</p>
 <table class="keys"><tr><td>Cattura</td><td>−15</td></tr><tr><td>Allarme</td><td>−8</td></tr><tr><td>Indizio usato</td><td>−5</td></tr><tr><td>Bottiglia segreta</td><td>+4</td></tr><tr><td>Ogni 10 s oltre il tempo di riferimento</td><td>−1</td></tr></table>

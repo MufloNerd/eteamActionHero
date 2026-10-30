@@ -28,14 +28,16 @@ ORIG = ROOT / '_originali'
 CHARS = ['estice', 'alcan', 'muglo', 'unicorn', 'proboscis']
 GROUPS = {  # tenere allineato con SPRITE_GROUPS in art.js
     'personaggi': [f'{c}-{k}' for c in CHARS for k in ('front', 'back', 'action', 'portrait')],
-    'nemici': ['guard-front', 'guard-back', 'guard-alert', 'guard-sleep', 'guard-stunned', 'boss-astemi'],
+    'nemici': ['guard-front', 'guard-back', 'guard-alert', 'guard-sleep', 'guard-stunned', 'boss-astemi',
+               'skel-front', 'skel-back', 'skel-alert', 'skel-sleep', 'skel-stunned', 'skel-laugh', 'simon-front', 'simon-back', 'simon-eat', 'simon-portrait'],
     'oggetti': ['prop-car', 'prop-bush', 'prop-barrel', 'prop-barricade', 'prop-table', 'prop-beer-tap',
-                'brewery-tank', 'grill-big', 'muglo-grill', 'estice-gas'],
+                'brewery-tank', 'grill-big', 'muglo-grill', 'estice-gas',
+                'prop-tomb', 'prop-pumpkin', 'prop-deadtree', 'station-fireplace', 'station-generator', 'station-woodpile'],
     'texture': ['tex-asphalt', 'tex-concrete', 'tex-grass', 'tex-wood', 'tex-carpet', 'tex-paving',
-                'tex-brick', 'tex-canvas'],
+                'tex-brick', 'tex-canvas', 'tex-stone', 'tex-deadgrass'],
 }
 FOLDER = {n: f for f, names in GROUPS.items() for n in names}
-ALIASES = {'-item': '-grill', '-profile': '-portrait', '-profilo': '-portrait', '-ritratto': '-portrait', '-busto': '-portrait',
+ALIASES = {'-eating': '-eat', '-mangia': '-eat', '-ride': '-laugh', '-risata': '-laugh', '-item': '-grill', '-profile': '-portrait', '-profilo': '-portrait', '-ritratto': '-portrait', '-busto': '-portrait',
            '-fronte': '-front', '-retro': '-back', '-spalle': '-back', '-azione': '-action'}
 EXTS = {'.png', '.jpg', '.jpeg', '.webp'}
 IGNORE = {'ludwig'}  # immagini usate direttamente dal gioco, non sprite
@@ -197,8 +199,8 @@ def main():
             print(f'?  {p.relative_to(ROOT)}: nome sconosciuto "{name}", ignorato')
             continue
         dest = ROOT / folder / f'{name}.png'
-        if p.resolve() == dest.resolve() and Image.open(p).mode == 'RGBA':
-            continue  # già pronto
+        if p.resolve() == dest.resolve() and not ('--rifai' in sys.argv):
+            continue  # già pronto (l'originale è in _originali)
         from_orig = ORIG in p.parents
         img = Image.open(p)
         img.load()

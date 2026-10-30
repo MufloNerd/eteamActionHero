@@ -374,3 +374,157 @@ const PAPERE = [
     'Ciak 73: Estice e Unicorn chiusi nella stessa stanza. Studio evacuato.',
     'Ciak 99: Fine delle riprese. Tutti al Ludwig. Paga Alcan.',
 ];
+
+// =========================================================
+// 🎃 Speciale Halloween: Assalto a Mount Hawk
+// =========================================================
+const SKEL_LOOK = { skin: '#ece6d6', shirt: '#2f2f36', pants: '#2a2a30', shoes: '#151515', hat: 'police', capCol: '#1a1a22', hair: '#ece6d6', mouth: 'grin', eyes: 'hollow', prop: 'lantern' };
+const SIMON_LOOK = { skin: '#e8c0a0', shirt: '#6a6a60', jacket: '#7a5a3a', pants: '#3b5f9a', shoes: '#4a3424', hat: 'none', hair: '#3a2a1e', beard: '#3a2a1e', beardKind: 'short', mouth: 'smirk', brows: 'angry', prop: 'none' };
+
+// Simon Storm: frasi tenebrose sulla raccolta delle olive
+const SIMON_LINES = [
+    'Le olive non si raccolgono da sole. Ma voi sì.',
+    'Ottobre. Tempo di raccolta. E di vendetta.',
+    'Sento l\'odore del frantoio... e della vostra paura.',
+    'Chi entra a Mount Hawk ne esce come olio extravergine.',
+    'I miei bracci meccanici sono fatti per bacchiare. Anche le teste.',
+    'Prima spremitura a freddo. Molto, molto freddo.',
+    'Nessuna grigliata stanotte. Solo potatura.',
+    'Ogni ulivo di Mount Hawk ha un nome. Presto avrà anche i vostri.',
+];
+// Minacce agricole personalizzate: Simon le urla quando scopre o cattura qualcuno
+const SIMON_THREATS = {
+    estice: [
+        'Estice! Ti userò come concime. Tanto puzzi già di letame.',
+        'Ti metto sotto la pressa del frantoio, minatore. Vediamo che olio esce.',
+        'Il tuo gas? Diventerà il pesticida dei miei ulivi.',
+    ],
+    alcan: [
+        'Alcan! Sei alto giusto per raccogliere le olive cadute. Per l\'eternità.',
+        'Ti appendo a un ramo come una rete da raccolta, nanetto.',
+        'Piccolo come un\'oliva taggiasca. E finirai nella stessa salamoia.',
+    ],
+    muglo: [
+        'Muglo! Stanotte l\'unica brace sarà quella del mio frantoio. Con le tue mani dentro.',
+        'Ti innesterò su un ulivo secolare. Per secoli.',
+        'Le tue salsicce le darò ai cinghiali. E poi darò te ai cinghiali.',
+    ],
+    unicorn: [
+        'Unicorn! Il tuo corno lo pianto nell\'uliveto. Come palo di sostegno.',
+        'Ridi pure. Dopo la concia, le olive amare non ridono più.',
+        'Ti verso nella vasca della sansa, birraio. Fermenterai per sempre.',
+    ],
+    proboscis: [
+        'Proboscis! Vuoi vendere Mount Hawk? Ti seppellisco sotto un ettaro di ulivi. Con vista.',
+        'Quel completo starà benissimo sullo spaventapasseri.',
+        'Agente immobiliare? Ti affitto una zolla. A vita.',
+    ],
+};
+const SKEL_LINES = ['Ho le ossa a pezzi dal turno di notte.', 'Nessuno passa! ...tranne gli spifferi.', 'Mi manca la mia carne.', 'Che freddo nelle costole.', 'Grigliata? Io non ho neanche lo stomaco.',
+    'Il padrone dice: chi non raccoglie, viene raccolto.', 'Anch\'io ero un raccoglitore di olive. Ora sono un concime.'];
+const SKEL_IMMUNE = {
+    sleep: ['Dormire? Sono già morto.', 'Niente polmoni, niente nanna.'],
+    lure: ['Non ho orecchie. Né stomaco.', 'Il whisky mi esce dalle costole.'],
+    stun: ['Non ho niente da invidiare. Letteralmente.', 'Bel tentativo. Io però sono tutto ossa.'],
+};
+const SIMON_IMMUNE = {
+    sleep: ['Simon Storm non dorme mai!', 'Ho preso tre espressi, sciocchi.'],
+    punch: ['Mi hai sfiorato il ginocchio. Patetico.'],
+    laugh: ['Io non rido. Io sghignazzo. Muahaha.'],
+    stun: ['Ho visto di meglio. Allo specchio.'],
+    flee: ['Il fuoco è MIO alleato!'],
+};
+const SKEL = { skel: true, immune: ['sleep', 'lure', 'stun'] };
+
+MISSIONS.push({
+    name: '🎃 Speciale Halloween: Assalto a Mount Hawk',
+    special: true,
+    secrets: [[37, 30], [2, 14], [33, 3]], par: 600,
+    hint: 'Una catena lunga: Estice apre il cimitero, Alcan ridà la corrente, Proboscis si fa annunciare, Unicorn fa ridere il Capo degli Scheletri, Muglo stana Simon, Alcan gli ruba la chiave.',
+    theme: {
+        sky: ['#140c26', '#3a2a50'], a: '#3a4430', b: '#343e2a', c: '#55555c', p: '#4a3a30', wT: '#2a2a30', wL: '#6a6a72', wR: '#55555c',
+        timber: false, prop: 'tomb', propE: 'pumpkin', obj: 'fireplace', wallMat: 'stone', deadTrees: true, night: true, rain: true,
+        mat: { ',': 'deadgrass', '.': 'paving', p: 'wood' }, plate: 'Mount Hawk · Notte di Halloween',
+    },
+    map: buildMap(40, 32, m => {
+        m.room(4, 1, 35, 12, 'p');                       // villa di Mount Hawk
+        m.fill(11, 1, 11, 12, '#');                      // cantina | atrio
+        m.fill(28, 1, 28, 12, '#');                      // atrio | studio di Simon
+        m.fill(12, 6, 27, 6, '#');                       // salone del camino | atrio
+        m.set('q', [17, 6], [18, 6]);                    // porta del salone
+        m.set('g', [17, 12], [18, 12]);                  // cancello elettrico
+        m.set('V', [7, 12]);                             // condotto della cantina
+        m.set('K', [28, 9]);                             // porta dello studio
+        m.set('O', [7, 4], [14, 9], [20, 2]);            // generatore, maggiordomo, camino
+        m.set('D', [14, 3], [25, 3], [24, 9]);
+        m.set('E', [12, 2], [27, 2], [33, 10], [12, 11]);
+        m.fill(1, 20, 38, 20, '#'); m.set('B', [20, 20], [21, 20]); // muro del cimitero
+        m.set('O', [6, 24], [8, 16], [30, 16]);          // lapide, legnaia, barbecue
+        m.set('C', [3, 22], [5, 22], [9, 22], [11, 22], [3, 26], [9, 26], [11, 26], [28, 22], [30, 22], [34, 22], [28, 26], [32, 26], [34, 26], [36, 24]);
+        m.set('T', [2, 18], [13, 15], [25, 18], [36, 15], [37, 18], [2, 29], [37, 28]);
+        m.set('E', [16, 14], [23, 14], [5, 18], [34, 18], [14, 22], [26, 22], [19, 27], [23, 27]);
+    }),
+    starts: [[17, 29], [19, 29], [21, 29], [23, 29], [25, 29]],
+    guards: [
+        { p: [[2, 23], [37, 23]], ...SKEL },
+        { p: [[20, 16]], base: Math.PI / 2, sweep: .6, ...SKEL, label: 'Scheletro di guardia' },
+        { p: [[3, 17], [37, 17]], ...SKEL },
+        { p: [[36, 14], [22, 14]], ...SKEL },
+        { p: [[6, 9], [10, 9]], ...SKEL },
+        { p: [[16, 10]], base: -2.68, sweep: .3, ...SKEL, label: 'Maggiordomo' },
+        { p: [[13, 8], [26, 8]], ...SKEL },
+        { p: [[20, 4]], base: Math.PI / 2, sweep: .8, ...SKEL, tag: 'capo', label: 'Capo degli Scheletri' },
+        { p: [[32, 5]], base: 2.36, sweep: .4, boss: true, simon: true, tag: 'simon', foodie: true, immune: ['sleep', 'punch', 'laugh', 'stun', 'flee'], label: '👑 Simon Storm' },
+    ],
+    steps: [
+        { id: 'lapide', who: null, x: 6, y: 24, kind: 'tomb', text: 'Leggi l\'epitaffio di Nonno Hawk', hint: 'Una lapide nel cimitero ha qualcosa da dire. Chiunque sa leggere. Quasi.', pop: 'R.I.P.', msg: '"Qui giace Nonno Hawk. Il muro a nord è crepato, come il suo carattere."' },
+        { id: 'muro', who: 'estice', after: ['lapide'], text: 'Apri un varco nel muro del cimitero', hint: 'Il muro crepato a nord aspetta solo qualcuno con la miccia facile.', cond: tileOpen(20, 20), msg: 'BOOM! Le ossa volano. Il giardino di Mount Hawk è aperto.' },
+        { id: 'legna', who: 'estice', after: ['muro'], x: 8, y: 16, kind: 'woodpile', text: 'Spacca la legna per il camino', hint: 'Serve qualcuno con un piccone e la schiena da minatore.', pop: 'CRACK!', msg: 'Estice spacca la legna. E un paio di ossa di passaggio.' },
+        { id: 'corrente', who: 'alcan', after: ['muro'], x: 7, y: 4, kind: 'generator', opens: 'g', text: 'Riattiva la corrente in cantina', hint: 'La cantina ha solo un condotto minuscolo. Indovina chi ci passa.', pop: 'BZZZT!', msg: 'Luce! Il cancello elettrico della villa si apre.' },
+        { id: 'invito', who: 'proboscis', disguise: true, after: ['corrente'], x: 14, y: 9, kind: 'reception', opens: 'q', text: 'Fatti annunciare dal maggiordomo', hint: 'Il maggiordomo apre il salone solo agli ospiti eleganti.', pop: 'PREGO!', msg: '"Il dottor Proboscis, agente immobiliare!" Il salone si apre.' },
+        { id: 'capo', who: 'unicorn', after: ['invito'], text: 'Distrai il Capo degli Scheletri davanti al camino', hint: 'Gli scheletri non dormono, ma hanno l\'osso del solletico. Serve una battuta tremenda.', cond: G => G.guards.some(g => g.tag === 'capo' && g.mode === 'laugh'), msg: 'Il Capo degli Scheletri si sbriciola dalle risate!' },
+        { id: 'griglia', who: 'muglo', after: ['muro', 'corrente'], x: 30, y: 16, kind: 'grill', lureTag: 'simon', text: 'Accendi il barbecue per stanare Simon', hint: 'Simon Storm è un ghiottone. Un barbecue in giardino potrebbe farlo uscire dallo studio.', pop: 'SFRIIII!', msg: 'Profumo di salsiccia: Simon Storm esce dallo studio con il tovagliolo al collo!' },
+        { id: 'chiave', who: 'alcan', after: ['griglia'], steal: 'simon', needMode: ['eat'], text: 'Ruba la chiave del camino dalla tasca di Simon', hint: 'Mentre Simon mangia non si accorge di niente. Serve uno piccolo, all\'altezza delle tasche.', lock: 'Simon è all\'erta: aspetta che si metta a mangiare!', pop: 'PRESA!', msg: 'Alcan sfila la chiave del camino. Simon non se n\'è accorto... per ora.' },
+        { id: 'camino', who: 'muglo', after: ['legna', 'chiave', 'capo'], x: 20, y: 2, kind: 'fireplace', text: 'Accendi la grigliata nel camino interno', hint: 'Legna, chiave e Capo degli Scheletri distratto: tocca al re della brace.', pop: 'FWOOSH!', msg: 'Il camino di Mount Hawk ruggisce. La grigliata di Halloween è salva!' },
+    ],
+    signs: [],
+    intro: [
+        { simon: true, who: 'Simon Storm', line: 'Benvenuti a Mount Hawk. Il camino è mio, la chiave è mia, e la grigliata... è VIETATA. Muahahaha!' },
+        { simon: true, who: 'Simon Storm', line: 'Il Ministro mi ha dato carta bianca. Stanotte si raccolgono le olive. E voi cinque siete l\'ultima cassetta.' },
+        { simon: true, who: 'Simon Storm', line: 'I miei scheletri erano raccoglitori come voi. Hanno bacchiato fino all\'osso. Letteralmente.' },
+        { char: 'unicorn', line: 'Simon e il Ministro alleati. Il club dei nemici della felicità ha finalmente due iscritti.' },
+        { char: 'muglo', line: 'Una grigliata nel camino di Mount Hawk... è il mio sogno da bambino. Nessuno me lo porterà via.' },
+        { char: 'estice', line: 'Le guardie sono scheletri. Niente stomaco, niente naso. Il mio peto è inutile. Mi sento... disarmato.' },
+        { char: 'alcan', line: 'La chiave ce l\'ha Simon in tasca? Sono basso: arrivo giusto all\'altezza delle tasche.' },
+        { char: 'proboscis', line: 'Villa con camino e vista cimitero. Ottimo potenziale immobiliare. Lasciate parlare me.' },
+    ],
+    outro: [
+        { char: 'muglo', line: 'Il camino è acceso! Salsicce, arrosticini e zucca alla brace per tutti!' },
+        { simon: true, who: 'Simon Storm', line: 'Nooo! Il mio camino! ...però che profumo. Ne posso avere uno?' },
+        { char: 'unicorn', line: 'Certo, Simon. Il più bruciato. Come la tua reputazione.' },
+        { simon: true, who: 'Simon Storm', line: 'Ridete pure. A novembre c\'è la raccolta. E le olive... ricordano.' },
+    ],
+});
+
+PAPERE.push(
+    'Ciak 101: lo scheletro di guardia ha perso la mandibola durante la scena. L\'abbiamo trovata nella zuppa di Muglo.',
+    'Ciak 113: Simon Storm ha provato la risata malvagia 40 volte. Al 41° tentativo ha riso Unicorn. Di lui.',
+    'Ciak 131: il temporale era vero. Il camino pure. Il tecnico del suono è ancora nascosto in cantina.',
+);
+
+BANTER.skel = [
+    ['unicorn', 'Uno scheletro di guardia. Finalmente qualcuno più magro di Alcan.'],
+    ['estice', 'Lo scheletro è crollato. Come la mia dieta.'],
+];
+BANTER.threat = [
+    ['unicorn', 'Simon, le tue minacce agricole fanno paura solo alle olive.'],
+    ['unicorn', 'Un cattivo che minaccia con la potatura. Il terrore dei giardinieri.'],
+    ['estice', 'Concime a chi? Sono io quello che fertilizza l\'aria qui.'],
+    ['alcan', 'NANETTO A CHI?! Vieni qui che ti bacchio io!'],
+    ['muglo', 'Le mani nel frantoio? Le ho già messe nel fuoco, figurati.'],
+    ['proboscis', 'Un ettaro con vista? Interessante. Trattabile?'],
+];
+BANTER.steal = [
+    ['unicorn', 'Alcan borseggiatore. Sapevo che quell\'altezza sarebbe servita a qualcosa.'],
+    ['muglo', 'Hai preso la chiave? Allora il camino è MIO!'],
+];

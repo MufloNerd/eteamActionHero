@@ -35,11 +35,14 @@ function loadMission(i) {
     const m = MISSIONS[i];
     const map = m.map.map(r => r.split(''));
     const guards = m.guards.map((g, k) => ({
-        kind: 'guard', path: g.p, boss: !!g.boss, label: g.label || (g.tag ? 'Ispettore' : ''), look: g.boss ? BOSS_LOOK : g.fat ? { ...GUARD_LOOK, fat: true } : GUARD_LOOK,
+        kind: 'guard', path: g.p, boss: !!g.boss, label: g.label || (g.tag ? 'Ispettore' : ''),
+        look: g.simon ? SIMON_LOOK : g.boss ? BOSS_LOOK : g.skel ? SKEL_LOOK : g.fat ? { ...GUARD_LOOK, fat: true } : GUARD_LOOK,
+        skel: !!g.skel, simon: !!g.simon, spr: g.skel ? 'skel' : g.simon ? 'simon' : 'guard',
+        lines: g.skel ? SKEL_LINES : g.simon ? SIMON_LINES : null, threats: g.simon ? SIMON_THREATS : null, immuneLines: g.skel ? SKEL_IMMUNE : g.simon ? SIMON_IMMUNE : null,
         tag: g.tag || (g.boss ? 'boss' : null), immune: g.immune || [], foodie: !!g.foodie,
         x: g.p[0][0] + .5, y: g.p[0][1] + .5, pi: 0, route: [], mode: 'patrol', timer: 0,
         dir: g.base || 0, base: g.base || 0, sweep: g.sweep || 1,
-        speed: g.boss ? 0 : 1.6, fov: g.boss ? 1.5 : 1.25, range: g.boss ? 8.5 : 6.5,
+        speed: g.boss && !g.simon ? 0 : 1.6, fov: g.boss ? 1.5 : 1.25, range: g.boss ? 8.5 : 6.5,
         meter: 0, after: null, say: null, phase: 0, back: false, flip: false, seed: k * 1.7, alerted: false,
         chatT: rnd(8, 25), hitT: 0, fxT: 0, susp: false, spot: null, repath: 0,
     }));
@@ -73,7 +76,7 @@ function walk(x, y, who) {
     const t = tileAt(x, y);
     if (t === 'K') return !!who && canDoor(who);
     if (t === 'V') return !!who && who.id === 'alcan';
-    return !'#TBOCDEg'.includes(t);
+    return !'#TBOCDEgq'.includes(t);
 }
 const opaqueTile = t => '#TBKV'.includes(t);
 function inSmoke(x, y) { return G.baits.some(b => b.kind === 'smoke' && Math.hypot(b.x - x, b.y - y) < b.r); }
@@ -258,7 +261,7 @@ const IMMUNE_LINES = {
 };
 function immune(g, kind) {
     if (!g.immune.includes(kind)) return false;
-    if (!(g.say && g.say.t < 1)) talk(g, pick(IMMUNE_LINES[kind]), 2);
+    if (!(g.say && g.say.t < 1)) talk(g, pick((g.immuneLines && g.immuneLines[kind]) || IMMUNE_LINES[kind]), 2);
     return true;
 }
 function inReach(c, r, needLos = true) {
@@ -285,7 +288,8 @@ function alcanPunch(c) {
     pop(g.x, g.y, 'POW!', '#ff4a3a', 40);
     burst(8, g.x, g.y, () => ({ kind: 'star', z: rnd(40, 60), vx: rnd(-2, 2), vy: rnd(-2, 2), vz: rnd(40, 100), g: 200, size: rnd(5, 8), max: .9, rot: rnd(0, 6), vr: rnd(-6, 6) }));
     g.hitT = .4;
-    sleepGuard(g, g.boss ? 6 : 12, pick(GUARD_LINES.punch));
+    sleepGuard(g, g.boss ? 6 : 12, g.skel ? 'Mi hai smontato!' : pick(GUARD_LINES.punch));
+    if (g.skel) banter('skel', [g.x, g.y]);
     G.stats.punches++;
     banter('punch', [c.x, c.y]);
     lure(c.x, c.y, 4, 'look', 3, 'Cos\'è stato?!');
@@ -388,7 +392,7 @@ function explode(d) {
             burst(14, i + .5, j + .5, () => ({ kind: 'debris', z: 20, vx: rnd(-3, 3), vy: rnd(-3, 3), vz: rnd(150, 280), g: 520, size: rnd(3, 5), max: 1.8, col: pick(['#a8763f', '#ffd23f', '#8a5a2b']), rot: rnd(0, 6), vr: rnd(-12, 12) }));
         }
     }
-    G.guards.forEach(g => { if (!g.boss && Math.hypot(g.x - d.x, g.y - d.y) < 1.8) { g.hitT = .5; if (!g.immune.includes('sleep')) sleepGuard(g, 8, 'Bzzzz... stordito'); } });
+    G.guards.forEach(g => { if (!g.boss && Math.hypot(g.x - d.x, g.y - d.y) < 1.8) { g.hitT = .5; if (g.skel) { sleepGuard(g, 10, 'Le mie ossa!'); banter('skel', [g.x, g.y]); } else if (!g.immune.includes('sleep')) sleepGuard(g, 8, 'Bzzzz... stordito'); } });
     G.chars.forEach(c => { if (Math.hypot(c.x - d.x, c.y - d.y) < 2.5) c.hitT = .5; });
     explosionFx(d.x, d.y);
     pop(d.x, d.y, 'BOOM!', '#ff8a1a', 52);
@@ -406,6 +410,18 @@ function interact(c) {
     if (c.captured) { toast(c.name + ' è in cella: serve un altro personaggio.'); return false; }
     const cap = G.chars.find(x => x !== c && x.captured && Math.hypot(x.x - c.x, x.y - c.y) < 1.6);
     if (cap) { freeChar(cap); return true; }
+    const so = G.objs.find(o => !o.done && o.steal);
+    const tgt = so && G.guards.find(g => g.tag === so.steal && Math.hypot(g.x - c.x, g.y - c.y) < 1.7);
+    if (tgt && !stepReady(so)) { toast('Prima: ' + so.after.map(id => G.objs.find(x => x.id === id)).filter(x => !x.done).map(x => x.text).join(' · '), 3500); return false; }
+    if (tgt) {
+        if (so.who && c.id !== so.who) { toast(c.name + ' non sa farlo. Prova con qualcun altro (o premi H per un indizio).', 3500); return false; }
+        if (!so.needMode.includes(tgt.mode)) { toast(so.lock, 3200); talk(tgt, 'Cosa vuoi, nanetto?', 2); return false; }
+        completeStep(so, c);
+        G.banterT = 0; banter('steal', [c.x, c.y]);
+        tgt.timer = Math.min(tgt.timer, 4);
+        later(4.2, () => { talk(tgt, 'La mia chiave!! INTRUSI A MOUNT HAWK!', 3, true); raiseAlarm(tgt.x, tgt.y, true); });
+        return true;
+    }
     const o = G.objs.find(o => !o.done && o.x != null && Math.hypot(c.x - (o.x + .5), c.y - (o.y + .5)) < 1.9);
     if (!o) { toast('Qui non c\'è niente da fare.'); return false; }
     if (!stepReady(o)) {
@@ -435,6 +451,7 @@ function completeStep(o, c) {
     if (o.kind === 'grill' && c) { c.fireT = 2; burst(24, ox, oy, () => ({ kind: 'fire', z: 24, vx: rnd(-1, 1), vy: rnd(-1, 1), vz: rnd(40, 120), size: rnd(8, 14), max: rnd(.6, 1.1) })); }
     if (o.opens) openGates(o.opens);
     if (o.feast) { feast(ox, oy); G.banterT = 0; banter('feast'); }
+    else if (o.lureTag) lureTag(o.lureTag, ox, oy, o.lureDur || 30);
     else if (!G.objs.every(x => x.done)) banter('step');
     refreshHud();
     if (G.objs.every(x => x.done)) {
@@ -463,6 +480,17 @@ function feast(x, y) {
         g.mode = 'goto'; g.route = r; g.susp = false; g.meter = 0;
         g.after = { mode: 'eat', dur: 35, msg: pick(['ARROSTICINI!!', 'Uno solo... dai...', 'Che profumo!']) };
         talk(g, 'Arrosticini?!', 1.5, true);
+    });
+}
+
+// Attira solo le guardie con un certo tag (es. Simon al barbecue)
+function lureTag(tag, x, y, dur) {
+    G.guards.filter(g => g.tag === tag).forEach(g => {
+        const r = bfs(Math.floor(g.x), Math.floor(g.y), Math.floor(x), Math.floor(y), g);
+        if (!r) return;
+        g.mode = 'goto'; g.route = r; g.susp = false; g.meter = 0;
+        g.after = { mode: 'eat', dur, msg: 'Salsicce?! Le voglio TUTTE io!' };
+        talk(g, 'Cos\'è questo profumo?!', 2, true);
     });
 }
 
@@ -556,7 +584,7 @@ function updateGuard(g, dt) {
         return;
     }
     g.chatT -= dt;
-    if (g.chatT <= 0) { g.chatT = rnd(14, 30); talk(g, pick(g.boss ? GUARD_LINES.boss : GUARD_LINES.patrol), 2.4); }
+    if (g.chatT <= 0) { g.chatT = rnd(14, 30); talk(g, pick(g.lines || (g.boss ? GUARD_LINES.boss : GUARD_LINES.patrol)), 2.4); }
     if (g.path.length === 1) {
         const p = g.path[0];
         if (Math.hypot(g.x - (p[0] + .5), g.y - (p[1] + .5)) > .15) {
@@ -595,7 +623,8 @@ function detect(dt) {
         g.meter = clamp(g.meter + (seen ? seen * dt : -.35 * dt), 0, 1);
         if (g.meter > .15 && !g.susp) {
             g.susp = true; g.route = [];
-            talk(g, pick(['Eh? Chi va là?', 'Hm? Ho visto qualcosa...', 'C\'è qualcuno?', 'Puzza di luppolo...']), 1.8);
+            if (g.threats && g.spotC) threaten(g, g.spotC);
+            else talk(g, pick(['Eh? Chi va là?', 'Hm? Ho visto qualcosa...', 'C\'è qualcuno?', 'Puzza di luppolo...']), 1.8);
             part({ kind: 'text', x: g.x, y: g.y, z: 80, vz: 25, txt: '?', col: '#ffd23f', size: 26, max: 1 });
         }
         if (g.meter <= .02 && g.susp) { g.susp = false; g.spot = null; g.route = []; talk(g, 'Mah... sarà stato il vento.', 1.6); }
@@ -683,6 +712,7 @@ function update(dt) {
         G.baits = G.baits.filter(b => b.t > 0);
         checkSteps();
         tickSystems(dt);
+        weather(dt);
         if (G.t > 4 && G.state === 'play') detect(dt);
     } else {
         G.chars.forEach(c => { if (c.actKind) { c.actT += dt; if (c.actT >= c.actDur) c.actKind = null; } });
@@ -740,7 +770,7 @@ function ambient(dt) {
     G.objs.forEach(o => {
         if (!o.done || o.x == null) return;
         if (o.kind === 'tap') part({ kind: 'bubble', x: o.x + .7, y: o.y + .5, z: 45, vz: rnd(10, 30), size: rnd(2, 4), max: 1.2, col: 'rgba(255,240,200,.7)' });
-        if (o.kind === 'grill') for (let k = 0; k < 3; k++) part({ kind: 'fire', x: o.x + rnd(0, 1), y: o.y + rnd(.2, .8), z: 26, vz: rnd(20, 50), size: rnd(4, 8), max: .6 });
+        if (o.kind === 'grill' || o.kind === 'fireplace') for (let k = 0; k < 3; k++) part({ kind: 'fire', x: o.x + rnd(0, 1), y: o.y + rnd(.2, .8), z: 26, vz: rnd(20, 50), size: rnd(4, 8), max: .6 });
     });
 }
 
@@ -765,7 +795,7 @@ function floorFill(t, th) {
 function drawWall(i, j, th) {
     const H = j === G.H - 1 || i === G.W - 1 ? 10 : 42, w = (a, b) => '#V'.includes(tileAt(a, b));
     const a = iso(i, j + 1), b = iso(i + 1, j + 1), c = iso(i + 1, j), d = iso(i, j), up = p => [p[0], p[1] - H];
-    const mat = th.stripes ? 'canvas' : 'brick';
+    const mat = th.wallMat || (th.stripes ? 'canvas' : 'brick');
     const sV = !w(i, j + 1), eV = !w(i + 1, j);
     if (sV) poly([a, b, up(b), up(a)], pattern(mat, th.wL, 'L'));
     if (eV) { poly([b, c, up(c), up(b)], pattern(mat, th.wL, 'R')); ctx.fillStyle = 'rgba(20,10,0,.28)'; ctx.fill(); }
@@ -800,12 +830,12 @@ function drawWall(i, j, th) {
 function drawBlock(i, j, t, th) {
     switch (t) {
         case '#': drawWall(i, j, th); break;
-        case 'T': drawTree(i, j, Math.floor(G.t * STOP) / STOP); break;
+        case 'T': if (th.deadTrees) drawDeadTree(i, j); else drawTree(i, j, Math.floor(G.t * STOP) / STOP); break;
         case 'C': drawProp3D(th.prop, i, j, G.t); break;
         case 'D': drawProp3D('table', i, j, G.t); break;
-        case 'E': drawProp3D('barrel', i, j, G.t); break;
+        case 'E': drawProp3D(th.propE || 'barrel', i, j, G.t); break;
         case 'V': drawWall(i, j, th); drawVent(i, j); break;
-        case 'g': drawGate(i, j, G.t); break;
+        case 'g': case 'q': drawGate(i, j, G.t); break;
         case 'B': drawBarricade(i, j, G.t); break;
         case 'K': drawDoor(i, j, G.t); break;
         case 'O': drawObjective(G.objs.find(o => o.x === i && o.y === j), i, j, G.t, th); break;
@@ -859,7 +889,10 @@ function drawEntity(e) {
             ctx.fillStyle = '#000a'; ctx.fillRect(sx - 19, top, 38, 6);
             ctx.fillStyle = e.meter > .6 ? '#e22' : '#fc0'; ctx.fillRect(sx - 18, top + 1, 36 * e.meter, 4);
         }
-        if (e.boss) {
+        if (e.simon && e.mode === 'eat' && G.objs.some(o => o.steal === 'simon' && !o.done && stepReady(o))) {
+            ctx.font = '22px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('🔑', sx + 14, sy - 86 - Math.sin(G.t * 6) * 4);
+        }
+        if (e.boss || e.simon) {
             ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = OUT;
             ctx.strokeText(e.label, sx, sy + 20); ctx.fillStyle = '#ffd23f'; ctx.fillText(e.label, sx, sy + 20);
         }
@@ -878,17 +911,24 @@ function drawCharSprite(c) {
 }
 
 function drawGuardSprite(g) {
-    if (g.boss) {
-        if (!SPR['boss-astemi']) return false;
+    if (g.boss || g.simon) {
+        let n = g.simon ? 'simon-front' : 'boss-astemi';
+        if (g.simon && g.mode === 'eat' && SPR['simon-eat']) n = 'simon-eat';
+        else if (g.simon && g.back && SPR['simon-back']) n = 'simon-back';
+        if (!SPR[n]) return false;
         if (g.mode === 'sleep') { ctx.translate(0, -6); ctx.rotate(-1.45); ctx.translate(0, 20); }
-        return drawSprite('boss-astemi', 80, g.flip);
+        return drawSprite(n, 80, g.flip);
     }
-    let n = g.back ? 'guard-back' : 'guard-front';
-    if (g.mode === 'sleep') n = 'guard-sleep';
-    else if (g.mode === 'stunned' || g.mode === 'laugh') n = 'guard-stunned';
-    else if (g.mode === 'flee' || g.meter > .6 || G.state === 'lost') n = 'guard-alert';
-    if (!SPR[n]) return false;
-    return drawSprite(n, n === 'guard-sleep' ? 40 : 76, g.flip);
+    const P = g.spr;
+    let n = P + (g.back ? '-back' : '-front');
+    if (g.mode === 'sleep') n = P + '-sleep';
+    else if (g.mode === 'laugh' && SPR[P + '-laugh']) n = P + '-laugh';
+    else if (g.mode === 'stunned' || g.mode === 'laugh') n = P + '-stunned';
+    else if (g.mode === 'flee' || g.meter > .6 || G.state === 'lost') n = P + '-alert';
+    if (!SPR[n]) n = [P + '-front', P + '-back'].find(k => SPR[k]);
+    if (!n) return false;
+    const sp = SPR[n], wide = (sp.width || sp.naturalWidth) > (sp.height || sp.naturalHeight) * 1.3;
+    return drawSprite(n, n.endsWith('-sleep') ? (wide ? 40 : 60) : 76, g.flip);
 }
 
 function poseOf(e, ts) {
@@ -949,7 +989,7 @@ function render() {
     for (let j = 0; j < G.H; j++) for (let i = 0; i < G.W; i++) {
         const t = G.map[j][i];
         const pts = [iso(i, j), iso(i + 1, j), iso(i + 1, j + 1), iso(i, j + 1)];
-        poly(pts, floorFill(t === 'O' || t === 'D' || t === 'E' ? floorUnder(i, j) : '#TCBKVg'.includes(t) ? ',' : t, th));
+        poly(pts, floorFill(t === 'O' || t === 'D' || t === 'E' ? floorUnder(i, j) : '#TCBKVgq'.includes(t) ? ',' : t, th));
         ctx.fillStyle = `rgba(0,0,0,${hash(i, j) * .07})`; ctx.fill();
     }
     if (G.marker) {
@@ -974,7 +1014,7 @@ function render() {
     const list = [];
     for (let j = 0; j < G.H; j++) for (let i = 0; i < G.W; i++) {
         const t = G.map[j][i];
-        if ('#TCBKODEVg'.includes(t)) list.push({ d: i + j + 1, f: () => drawBlock(i, j, t, th) });
+        if ('#TCBKODEVgq'.includes(t)) list.push({ d: i + j + 1, f: () => drawBlock(i, j, t, th) });
     }
     G.chars.forEach(ch => list.push({ d: ch.x + ch.y, f: () => drawEntity(ch) }));
     G.guards.forEach(g => list.push({ d: g.x + g.y, f: () => drawEntity(g) }));
@@ -995,6 +1035,7 @@ function render() {
     ctx.save(); ctx.globalAlpha = .35;
     [...G.chars, ...G.guards].forEach(drawEntity);
     ctx.restore();
+    if (th.night) drawNight(th);
 
     drawPlan();
     drawPreview();
@@ -1027,7 +1068,7 @@ function drawMini() {
     const dia = (i, j, col) => { c.fillStyle = col; c.beginPath(); const p = [iso(i, j), iso(i + 1, j), iso(i + 1, j + 1), iso(i, j + 1)]; p.forEach((q, n) => n ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); c.fill(); };
     for (let j = 0; j < G.H; j++) for (let i = 0; i < G.W; i++) {
         const t = G.map[j][i];
-        dia(i, j, t === '#' ? '#3a2a1e' : t === 'V' ? '#f2c618' : t === 'K' ? '#3d5a8a' : t === 'g' ? '#9aa0a6' : t === 'B' ? '#c2553d' : 'TCDE'.includes(t) ? '#5f6a4a' : t === 'p' ? '#a07850' : '#b8b2a4');
+        dia(i, j, t === '#' ? '#3a2a1e' : t === 'V' ? '#f2c618' : t === 'K' ? '#3d5a8a' : 'gq'.includes(t) ? '#9aa0a6' : t === 'B' ? '#c2553d' : 'TCDE'.includes(t) ? '#5f6a4a' : t === 'p' ? '#a07850' : '#b8b2a4');
     }
     const z = G.safe; c.fillStyle = 'rgba(70,220,110,.45)';
     c.beginPath(); [iso(z.x0, z.y0), iso(z.x1, z.y0), iso(z.x1, z.y1), iso(z.x0, z.y1)].forEach((q, n) => n ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); c.fill();
@@ -1043,6 +1084,47 @@ mini.addEventListener('pointerdown', e => {
     const r = mini.getBoundingClientRect();
     G.cam.x = (e.clientX - r.left - miniOX) / miniK; G.cam.y = (e.clientY - r.top - 4) / miniK; G.free = true;
 });
+
+// Buio di Halloween: si vede solo vicino ai personaggi, alle lanterne e alle zucche
+let NIGHT = null;
+function drawNight(th) {
+    if (!NIGHT || NIGHT.width !== cv.width || NIGHT.height !== cv.height) { NIGHT = document.createElement('canvas'); NIGHT.width = cv.width; NIGHT.height = cv.height; }
+    const n = NIGHT.getContext('2d'), M = ctx.getTransform();
+    n.setTransform(1, 0, 0, 1, 0, 0); n.globalCompositeOperation = 'source-over';
+    n.clearRect(0, 0, NIGHT.width, NIGHT.height);
+    n.fillStyle = `rgba(6,4,22,${.66 - (G.flash || 0) * .55})`; n.fillRect(0, 0, NIGHT.width, NIGHT.height);
+    n.setTransform(M); n.globalCompositeOperation = 'destination-out';
+    const hole = (x, y, r, a = 1) => {
+        const [sx, sy] = iso(x, y), gr = n.createRadialGradient(sx, sy - 20, 0, sx, sy - 20, r);
+        gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(.6, `rgba(0,0,0,${a * .7})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+        n.fillStyle = gr; n.beginPath(); n.ellipse(sx, sy - 20, r, r * .75, 0, 0, 7); n.fill();
+    };
+    G.chars.forEach(c => hole(c.x, c.y, 130));
+    G.guards.forEach(g => hole(g.x, g.y, g.skel ? 55 : 70, .8));
+    G.map.forEach((r, j) => r.forEach((t, i) => { if (t === 'E' && th.propE === 'pumpkin') hole(i + .5, j + .5, 60, .8); }));
+    G.objs.forEach(o => { if (o.x == null) return; if (o.kind === 'fireplace' && o.done) hole(o.x + .5, o.y + .5, 220); else if (stepReady(o) && !o.done) hole(o.x + .5, o.y + .5, 55, .7); });
+    G.baits.forEach(b => hole(b.x, b.y, 90, .8));
+    G.parts.forEach(p => { if (p.kind === 'fire' && p.life < .1) hole(p.x, p.y, 40, .25); });
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(NIGHT, 0, 0); ctx.restore();
+    ctx.save(); ctx.globalAlpha = .7; G.guards.forEach(drawCone); ctx.restore();
+    if (G.flash > 0) { ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = `rgba(225,232,255,${G.flash * .45})`; ctx.fillRect(0, 0, cw, ch); ctx.restore(); }
+}
+
+function weather(dt) {
+    const th = G.m.theme;
+    if (!th.night) return;
+    G.flash = Math.max(0, (G.flash || 0) - dt * 2.2);
+    G.boltT = (G.boltT ?? rnd(8, 14)) - dt;
+    if (G.boltT <= 0) {
+        G.boltT = rnd(14, 26); G.flash = 1;
+        later(rnd(.3, 1.2), () => sfx('thunder'));
+        if (Math.random() < .5) later(.25, () => { G.flash = .7; });
+    }
+    if (th.rain) for (let k = 0; k < 5; k++) {
+        const [wx, wy] = toWorld(rnd(0, cw), rnd(-50, ch));
+        part({ kind: 'rain', x: wx, y: wy, z: rnd(120, 220), vz: -700, max: .3 });
+    }
+}
 
 function drawCone(g) {
     if (!awake(g)) return;
@@ -1101,6 +1183,7 @@ function showTitle() {
 
 function panelImg(p) {
     if (p.char) return CHARS.find(c => c.id === p.char).img;
+    if (p.simon) return spritePath('simon-portrait');
     if (p.boss) return portraitOf('boss');
     return p.img;
 }

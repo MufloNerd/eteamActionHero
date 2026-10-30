@@ -1246,7 +1246,7 @@ body.nomap #mini {
     }
 
     body:not(.nomap) #team {
-        left: 140px
+        left: 180px
     }
 }
 

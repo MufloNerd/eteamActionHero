@@ -175,3 +175,54 @@ sprites/texture/     tex-asphalt tex-concrete tex-grass tex-wood tex-carpet tex-
 ```
 
 Suoni e musica non vanno generati: li sintetizza il gioco.
+
+---
+
+## 🎃 Speciale Halloween: Assalto a Mount Hawk (17 file)
+
+Stessa consegna di sempre: metti i file in `assets/sprites/` e lancia `tools/.venv/bin/python tools/prepara_sprite.py`.
+Finché mancano, il gioco usa versioni disegnate via codice.
+
+### `nemici/` (8 file)
+
+**Scheletri di guardia.** Usa lo stile base dei personaggi, poi:
+> A skeleton security guard action figure: real-looking plastic bones, skull with hollow black eye sockets and a tiny red glow inside, the same dark blue peaked cap and Ministry of Sobriety badge as the inspectors, ragged black uniform hanging on the bones, holding an old oil lantern. Spooky but funny.
+
+| File | Posa |
+|---|---|
+| `skel-front.png` | pattuglia, 3/4 frontale verso destra, lanterna alzata |
+| `skel-back.png` | di spalle, 3/4 verso l'alto a destra |
+| `skel-alert.png` | spaventato: la mandibola cade, braccia in alto |
+| `skel-sleep.png` | **crollato a terra**: mucchio di ossa con il cappello sopra, in orizzontale |
+| `skel-stunned.png` | piegato in due dalle risate, si tiene le costole |
+
+**Simon Storm, l'acerrimo nemico.** Allega una sua foto se ce l'hai, così la figura gli somiglia.
+> [STILE BASE] Simon Storm, a theatrical villain: long black coat, dark red shirt, slicked-back black hair, pointed goatee, arrogant smirk, a big antique iron key hanging from his belt.
+
+| File | Posa |
+|---|---|
+| `simon-front.png` | 3/4 frontale verso destra, mani giunte da cattivo, sorriso perfido (si usa anche nei dialoghi) |
+| `simon-back.png` | di spalle, mantello svolazzante |
+| `simon-eat.png` | addenta una salsiccia con il tovagliolo al collo, beato |
+
+### `oggetti/` (6 file)
+
+Usa lo stile base degli oggetti, con atmosfera notturna e luce fredda di luna.
+
+| File | Descrizione |
+|---|---|
+| `prop-tomb.png` | lapide di pietra muschiosa con scritto "R.I.P." (usata anche per l'epitaffio di Nonno Hawk) |
+| `prop-pumpkin.png` | zucca di Halloween intagliata con candela accesa dentro |
+| `prop-deadtree.png` | albero secco e contorto da plastico, senza foglie |
+| `station-fireplace.png` | grande camino in pietra di un castello, con griglia e legna (obiettivo finale) |
+| `station-generator.png` | vecchio generatore elettrico da cantina con leva e spie |
+| `station-woodpile.png` | catasta di legna con un'ascia piantata sopra |
+
+### `texture/` (2 file)
+
+Stesse regole delle altre texture: vista dall'alto, seamless, luce piatta.
+
+| File | Materiale |
+|---|---|
+| `tex-stone.png` | blocchi di pietra grigia vecchia con muschio (mura di Mount Hawk) |
+| `tex-deadgrass.png` | prato secco e fangoso, foglie morte (giardino e cimitero) |

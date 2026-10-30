@@ -10,9 +10,11 @@ const SPR = {};
 // Cartelle dentro assets/sprites/ (stessa struttura dello zip da scaricare)
 const SPRITE_GROUPS = {
     personaggi: CHARS.flatMap(c => ['front', 'back', 'action', 'portrait'].map(k => c.id + '-' + k)),
-    nemici: ['guard-front', 'guard-back', 'guard-alert', 'guard-sleep', 'guard-stunned', 'boss-astemi'],
-    oggetti: ['prop-car', 'prop-bush', 'prop-barrel', 'prop-barricade', 'prop-table', 'prop-beer-tap', 'brewery-tank', 'grill-big', 'muglo-grill', 'estice-gas'],
-    texture: ['tex-asphalt', 'tex-concrete', 'tex-grass', 'tex-wood', 'tex-carpet', 'tex-paving', 'tex-brick', 'tex-canvas'],
+    nemici: ['guard-front', 'guard-back', 'guard-alert', 'guard-sleep', 'guard-stunned', 'boss-astemi',
+        'skel-front', 'skel-back', 'skel-alert', 'skel-sleep', 'skel-stunned', 'skel-laugh', 'simon-front', 'simon-back', 'simon-eat', 'simon-portrait'],
+    oggetti: ['prop-car', 'prop-bush', 'prop-barrel', 'prop-barricade', 'prop-table', 'prop-beer-tap', 'brewery-tank', 'grill-big', 'muglo-grill', 'estice-gas',
+        'prop-tomb', 'prop-pumpkin', 'prop-deadtree', 'station-fireplace', 'station-generator', 'station-woodpile'],
+    texture: ['tex-asphalt', 'tex-concrete', 'tex-grass', 'tex-wood', 'tex-carpet', 'tex-paving', 'tex-brick', 'tex-canvas', 'tex-stone', 'tex-deadgrass'],
 };
 const SPRITE_FOLDER = {};
 Object.entries(SPRITE_GROUPS).forEach(([f, list]) => list.forEach(n => SPRITE_FOLDER[n] = f));
@@ -175,6 +177,18 @@ function texture(kind, base) {
             }
             dots(300, [shade(base, -25), shade(base, 20)], 1);
             break;
+        case 'stone':
+            g.fillStyle = shade(base, -45); g.fillRect(0, 0, S, S);
+            for (let y = 0; y < 4; y++) for (let x = -1; x < 3; x++) {
+                const w = 20 + r() * 8, ox = x * 24 + (y % 2) * 12;
+                g.fillStyle = shade(base, Math.round((r() - .5) * 30)); g.fillRect(ox + 1, y * 16 + 1, w - 2, 14);
+            }
+            dots(400, [shade(base, -25), shade(base, 15), '#4a5a3a'], 1.2);
+            break;
+        case 'deadgrass':
+            dots(1600, [shade(base, -25), shade(base, 18), '#5a5030', '#2a3020', '#6a6040'], 1.4);
+            dots(40, ['#7a6a4a', '#2a2a2a'], 2);
+            break;
         case 'canvas':
             for (let x = 0; x < 4; x++) { g.fillStyle = x % 2 ? '#f4efe2' : base; g.fillRect(x * 16, 0, 16, S); }
             dots(1200, ['rgba(0,0,0,.06)', 'rgba(255,255,255,.08)'], 1);
@@ -192,7 +206,7 @@ const PAT = {};
 function pattern(kind, base, m) {
     const src = SPR['tex-' + kind], key = kind + base + m + (src ? '*' : '');
     if (PAT[key]) return PAT[key];
-    const TEX_SCALE = { brick: 3, canvas: 2.5, wood: 2, paving: 2, grass: 2, asphalt: 2, concrete: 2, carpet: 2 };
+    const TEX_SCALE = { stone: 2.5, deadgrass: 2, brick: 3, canvas: 2.5, wood: 2, paving: 2, grass: 2, asphalt: 2, concrete: 2, carpet: 2 };
     const img = src || texture(kind, base), k = src ? 64 / (src.width || src.naturalWidth) * (TEX_SCALE[kind] || 1) : 1;
     const M = m === 'floor' ? [.5, .25, -.5, .25] : m === 'L' ? [.5, .25, 0, .66] : m === 'R' ? [.5, -.25, 0, .66] : [1, 0, 0, 1];
     const p = X.createPattern(img, 'repeat');
@@ -252,6 +266,12 @@ function drawProp(kind, P) {
             rr(-7, -12, 14, 11, 1.5); fs('#d6362b');
             X.fillStyle = '#fff'; X.font = 'bold 3.6px sans-serif'; X.textAlign = 'center'; X.fillText('VENDESI', 0, -5.5);
             break;
+        case 'lantern':
+            limb(0, -6, 0, -11, 1, '#333333');
+            rr(-3, -6, 6, 7, 1); fs('#2a2a2a');
+            X.save(); X.globalCompositeOperation = 'lighter';
+            circ(0, -2.5, 2.4, 'rgba(255,200,90,.95)', 0); X.globalAlpha = .35; circ(0, -2.5, 7, '#ffb040', 0); X.restore();
+            break;
         case 'ball':
             sph(0, -6, 6, 6, '#e8742a');
             break;
@@ -296,7 +316,10 @@ function drawFace(L, P, hx, hy) {
     if (L.glasses && e !== 'sleep') {
         ex.forEach(x => { rr(x - 1.9, ey - 1.3, 3.8, 2.6, 1); X.fillStyle = '#111'; X.fill(); X.fillStyle = 'rgba(255,255,255,.6)'; X.fillRect(x - 1.2, ey - .9, .8, .6); });
         X.beginPath(); X.moveTo(ex[0] + 1.9, ey - .5); X.lineTo(ex[1] - 1.9, ey - .5); X.stroke();
-    } else ex.forEach((x, k) => {
+    } else if (L.eyes === 'hollow') ex.forEach(x => {
+        X.beginPath(); X.ellipse(x, ey, 1.6, 1.9, 0, 0, 7); X.fillStyle = '#0a0a0a'; X.fill();
+        if (e !== 'sleep') { X.beginPath(); X.arc(x, ey, .5, 0, 7); X.fillStyle = '#ff5a2a'; X.fill(); }
+    }); else ex.forEach((x, k) => {
         if (e === 'sleep' || P.blink) { X.beginPath(); X.moveTo(x - 1, ey); X.lineTo(x + 1, ey); X.stroke(); return; }
         if (e === 'laugh') { X.beginPath(); X.arc(x, ey + .6, 1, Math.PI + .3, -.3); X.stroke(); return; }
         const big = e === 'shock' || e === 'stunned' || (L.eyes === 'crazy' && k);
@@ -560,6 +583,10 @@ function drawParticle(p) {
             X.closePath(); X.shadowColor = 'rgba(0,0,0,.4)'; X.shadowOffsetX = 1.5; X.shadowOffsetY = 2; X.fillStyle = p.col || '#ffd84a'; X.fill();
             break;
         }
+        case 'rain':
+            X.globalAlpha = .45; X.strokeStyle = '#bcd0ff'; X.lineWidth = 1;
+            X.beginPath(); X.moveTo(0, 0); X.lineTo(-3, -16); X.stroke();
+            break;
         case 'ring': { // onda sonora: raggio in caselle
             const r = p.size * (.25 + .75 * k);
             X.globalAlpha = (1 - k) * .8;
@@ -688,6 +715,23 @@ function drawProp3D(kind, i, j) {
             X.strokeStyle = 'rgba(255,255,255,.7)'; X.lineWidth = 1.2; X.beginPath(); X.moveTo(a + 3, b - 13); X.lineTo(a + 7, b - 19); X.stroke();
             break;
         }
+        case 'tomb':
+            if (drawSpriteAt('prop-tomb', sx, sy + 6, 46)) return;
+            X.beginPath(); X.ellipse(sx + 4, sy + 2, 14, 6, 0, 0, 7); X.fillStyle = 'rgba(0,0,0,.25)'; X.fill();
+            drawTomb(sx, sy, false);
+            return;
+        case 'pumpkin': {
+            if (drawSpriteAt('prop-pumpkin', sx, sy + 4, 30)) return;
+            X.beginPath(); X.ellipse(sx + 3, sy + 2, 13, 5, 0, 0, 7); X.fillStyle = 'rgba(0,0,0,.25)'; X.fill();
+            [-6, 6, 0].forEach(dx => sph(sx + dx, sy - 9, 8, 9, '#e8741a'));
+            limb(sx, sy - 18, sx + 2, sy - 23, 2.5, '#3a5a1a');
+            X.save(); X.globalCompositeOperation = 'lighter'; X.fillStyle = `rgba(255,${200 + Math.random() * 40 | 0},80,.95)`;
+            poly([[sx - 6, sy - 12], [sx - 2, sy - 12], [sx - 4, sy - 15]], X.fillStyle);
+            poly([[sx + 2, sy - 12], [sx + 6, sy - 12], [sx + 4, sy - 15]], X.fillStyle);
+            X.beginPath(); X.moveTo(sx - 6, sy - 7); X.lineTo(sx - 3, sy - 5); X.lineTo(sx, sy - 7); X.lineTo(sx + 3, sy - 5); X.lineTo(sx + 6, sy - 7); X.lineTo(sx, sy - 3); X.closePath(); X.fill();
+            X.restore();
+            return;
+        }
         case 'barrel': {
             if (drawSpriteAt('prop-barrel', sx, sy + 4, 44)) return;
             X.beginPath(); X.ellipse(sx + 4, sy + 2, 16, 7, 0, 0, 7); X.fillStyle = 'rgba(0,0,0,.28)'; X.fill();
@@ -782,6 +826,7 @@ function drawObjective(o, i, j, t, theme) {
             break;
         }
         case 'valve': case 'contract': case 'reception': case 'boiler': case 'sacks': case 'panel': case 'crate': case 'safe':
+        case 'tomb': case 'woodpile': case 'generator': case 'fireplace':
             drawStation(o.kind, i, j, sx, sy, t, done);
             break;
         case 'desk':
@@ -903,7 +948,37 @@ function metal(x0, x1, dark) {
 }
 function drawStation(kind, i, j, sx, sy, t, done) {
     X.beginPath(); X.ellipse(sx + 4, sy + 2, 20, 8, 0, 0, 7); X.fillStyle = 'rgba(0,0,0,.25)'; X.fill();
+    const SH = { fireplace: 80, generator: 56, woodpile: 46, tomb: 50 };
+    if (kind === 'tomb' && drawSpriteAt('prop-tomb', sx, sy + 6, SH.tomb)) return;
+    if (drawSpriteAt('station-' + kind, sx, sy + 8, SH[kind] || 56)) return;
     switch (kind) {
+        case 'tomb':
+            drawTomb(sx, sy, done);
+            break;
+        case 'woodpile':
+            for (let r = 0; r < 3; r++) for (let k = 0; k < 4 - r; k++) {
+                if (done && r === 2) continue;
+                const x = sx - 14 + k * 9 + r * 4.5, y = sy - 6 - r * 7;
+                limb(x - 4, y, x + 4, y - 3, 7, '#7a5230'); circ(x + 4, y - 3, 3.2, '#c8a070', 0);
+            }
+            if (done) { X.save(); X.translate(sx + 12, sy - 14); X.rotate(.6); drawProp('pickaxe', {}); X.restore(); }
+            break;
+        case 'generator':
+            box(i + .1, j + .2, i + .9, j + .8, 26, '#5a6a50', '#46553e', '#36432f');
+            X.fillStyle = '#ffd23f'; X.font = 'bold 14px sans-serif'; X.textAlign = 'center'; X.fillText('⚡', sx - 4, sy - 12);
+            sph(sx + 8, sy - 30, 3, 3, done ? '#7fff7a' : (Math.sin(t * 5) > 0 ? '#ff3a3a' : '#601818'));
+            break;
+        case 'fireplace':
+            box(i - .4, j + .2, i + 1.4, j + .9, 46, pattern('stone', '#8a8a90', 'floor'), '#6a6a72', '#55555c');
+            { const [a, b] = iso(i + .5, j + .9); rr(a - 12, b - 30, 22, 24, 6); X.fillStyle = '#0a0806'; X.fill(); }
+            box(i - .5, j + .15, i + 1.5, j + .95, 4, '#4a3a2a', '#3a2a1a', '#2a1a0a');
+            if (done) {
+                const [a, b] = iso(i + .5, j + .9);
+                X.save(); X.globalCompositeOperation = 'lighter';
+                for (let k = 0; k < 3; k++) { const f = Math.sin(t * 12 + k * 2) * 2; X.beginPath(); X.ellipse(a - 6 + k * 5, b - 14 - f, 4, 9 + f, 0, 0, 7); X.fillStyle = k === 1 ? 'rgba(255,230,120,.9)' : 'rgba(255,120,30,.8)'; X.fill(); }
+                X.restore();
+            }
+            break;
         case 'valve': // bombola CO2
             [-9, 0, 9].forEach((dx, k) => {
                 rr(sx + dx - 5, sy - 46 + k * 3, 10, 44 - k * 3, 5); X.fillStyle = metal(sx + dx - 5, sx + dx + 5, k === 1 ? '#4a7a5a' : '#6a7078'); X.fill();
@@ -1023,4 +1098,29 @@ function drawSecret(x, y, t) {
         X.beginPath(); for (let i = 0; i < 8; i++) { const r = i % 2 ? 1.2 : 5, a = i * Math.PI / 4; X.lineTo(Math.cos(a) * r, Math.sin(a) * r); } X.fill();
         X.restore();
     }
+}
+
+// ---------- Halloween ----------
+function drawTomb(sx, sy, open) {
+    const g = X.createLinearGradient(sx - 10, 0, sx + 10, 0);
+    g.addColorStop(0, '#5a5a62'); g.addColorStop(.4, '#9a9aa2'); g.addColorStop(1, '#4a4a52');
+    X.beginPath(); X.moveTo(sx - 10, sy); X.lineTo(sx - 10, sy - 26); X.arc(sx, sy - 26, 10, Math.PI, 0); X.lineTo(sx + 10, sy); X.closePath();
+    X.fillStyle = g; X.fill();
+    X.fillStyle = 'rgba(60,90,40,.6)'; X.fillRect(sx - 10, sy - 6, 20, 6);
+    X.fillStyle = '#2a2a30'; X.font = 'bold 6px serif'; X.textAlign = 'center'; X.fillText('R.I.P.', sx, sy - 22);
+    if (open) { X.fillStyle = '#f4ecd8'; X.fillRect(sx - 6, sy - 16, 12, 7); }
+}
+
+function drawDeadTree(i, j) {
+    const [sx, sy] = iso(i + .5, j + .5);
+    X.beginPath(); X.ellipse(sx + 6, sy + 2, 18, 7, 0, 0, 7); X.fillStyle = 'rgba(0,0,0,.25)'; X.fill();
+    if (drawSpriteAt('prop-deadtree', sx, sy + 4, 96)) return;
+    const br = (x, y, a, l, w) => {
+        if (l < 6) return;
+        const x2 = x + Math.cos(a) * l, y2 = y + Math.sin(a) * l;
+        limb(x, y, x2, y2, w, '#3a2c22');
+        const h = hash(Math.round(x), Math.round(y));
+        br(x2, y2, a - .5 - h * .3, l * .68, w * .7); br(x2, y2, a + .45 + h * .3, l * .62, w * .7);
+    };
+    br(sx, sy, -Math.PI / 2, 34, 6);
 }
